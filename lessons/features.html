@@ -1,0 +1,160 @@
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">1</span> Simple Explanation</h2>
+<p><strong>Feature Engineering</strong> is the process of transforming raw, messy, real-world data into structured numerical representations that expose hidden patterns to machine learning algorithms. If data is crude oil, feature engineering is the refinery that converts it into aviation fuel. Without the refinery, the oil is useless to the engine.</p>
+<p>Algorithms are high-dimensional mathematical calculators. A Random Forest does not understand what "Tuesday" is. It cannot parse a raw timestamp, a null value, or a city name. Feature engineering bridges the gap between human reality and mathematical computation. It involves four pillars: <strong>Imputation</strong> (handling missing data), <strong>Encoding</strong> (converting categories to numbers), <strong>Transformation</strong> (reshaping distributions), and <strong>Extraction</strong> (creating new variables that capture business logic).</p>
+<div class="callout">💡 <strong>Key insight:</strong> There is a famous axiom in applied ML: "Machine learning is basically feature engineering." In production, a simple Logistic Regression powered by brilliant domain-expert features will consistently beat a complex Neural Network fed raw, unengineered data. Data quality dictates model ceiling.</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">2</span> Why It Matters for AI Engineers</h2>
+<p>The transition from junior developer to senior AI engineer is marked by a shift from focusing on the algorithm to obsessing over the data. In the enterprise world, data is chaotic — scattered across PostgreSQL databases, MongoDB documents, and messy API logs. You will spend 70–80% of your engineering hours building feature pipelines.</p>
+<p>Knowing how to handle high-cardinality categorical variables (like postal codes with 40,000 unique values) without exploding memory via One-Hot Encoding is a vital systems skill. Knowing how to apply Log transformations to stabilize variance allows you to meet the statistical assumptions of linear models. And understanding how to inject domain knowledge as interaction features is how you make a model genuinely intelligent about the business problem it solves.</p>
+<div class="tag-row"><span class="tag">One-Hot Encoding</span><span class="tag">Target Encoding</span><span class="tag">Imputation</span><span class="tag">Log Transform</span><span class="tag">Data Leakage</span><span class="tag">sklearn Pipelines</span></div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">3</span> Real-World Example</h2>
+<p><strong>Scenario: AI-Powered Bank Transaction Categorizer</strong></p>
+<p>Your app automatically categorizes bank transactions. The raw data from the bank API: <code>{"timestamp": "2026-03-31T23:15:00", "description": "UBER *TRIP SF", "amount": -45.50}</code></p>
+<p>A naive model trained on this string will perform terribly. Your feature engineering pipeline transforms this single JSON object into a rich mathematical vector:</p>
+<ul>
+  <li><strong>Temporal Extraction:</strong> Parse timestamp into <code>hour=23</code>, <code>day_of_week=1</code>, <code>is_weekend=0</code>.</li>
+  <li><strong>Cyclical Encoding:</strong> Hour 23 and hour 0 are 1 hour apart, but numerically 23 units apart. Apply sine and cosine transforms: <code>sin(2π × hour/24)</code> and <code>cos(2π × hour/24)</code> to represent time as a continuous circle.</li>
+  <li><strong>Text Parsing:</strong> Use regex to strip numbers and special characters from description, leaving <code>merchant="UBER"</code>.</li>
+  <li><strong>Interaction Feature:</strong> Compute <code>amount_vs_avg</code> — how this transaction compares to the user's historical average spend at this merchant category.</li>
+</ul>
+<p>These features give the model the exact signals it needs: "a $45 expense at 11 PM on a weekday for UBER is Transportation/Commute, not Dining."</p>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Missing Value Imputation:</strong> ML algorithms cannot compute with NaN. For numerical columns, fill with the median (robust to outliers). For categorical columns, fill with the mode or a dedicated "Unknown" category. Advanced: use KNN-Imputation for correlated features.</li>
+  <li><strong>Handling Skewed Distributions:</strong> Skewed data (e.g., salaries, transaction amounts) harms gradient descent. Apply <code>log(x+1)</code> to heavily right-skewed data — this pulls extreme outliers closer to the mean and produces a more normal distribution.</li>
+  <li><strong>Categorical Encoding:</strong>
+    <ul>
+      <li><em>One-Hot Encoding:</em> For low-cardinality data (e.g., Color: Red/Green/Blue → 3 binary columns). Use <code>drop='first'</code> to avoid the dummy variable trap.</li>
+      <li><em>Target Encoding:</em> For high-cardinality data (e.g., Zip Codes). Replace the category with the average target value — but only computed on training data to avoid leakage.</li>
+    </ul>
+  </li>
+  <li><strong>Feature Scaling:</strong> Neural networks and distance-based algorithms require features on the same scale. Use StandardScaler (Z-score, centers at mean 0, std 1) for most models, MinMaxScaler (0 to 1) when you need bounded outputs.</li>
+  <li><strong>Interaction Features:</strong> Combine existing features to capture business logic the model cannot discover alone. Examples: <code>debt_to_income_ratio</code>, <code>sqft_per_bedroom</code>, <code>clicks_per_impression</code>.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">5</span> Python Code Example</h2>
+<p>In production, never engineer features manually script by script. Use Scikit-Learn Pipelines and ColumnTransformers — they guarantee that every transformation applied to training data is applied identically to live inference data, preventing the most common cause of production AI failures.</p>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline
+<span class="kw">from</span> sklearn.compose <span class="kw">import</span> ColumnTransformer
+<span class="kw">from</span> sklearn.impute <span class="kw">import</span> SimpleImputer
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler, OneHotEncoder, FunctionTransformer
+<span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> GradientBoostingClassifier
+<span class="kw">from</span> sklearn.model_selection <span class="kw">import</span> train_test_split
+
+<span class="cm"># 1. Mock raw dataset</span>
+df = pd.<span class="cl">DataFrame</span>(&#123;
+    <span class="str">'amount'</span>:   [<span class="num">15.5</span>, <span class="num">1200.0</span>, np.nan, <span class="num">8.99</span>, <span class="num">45000.0</span>],
+    <span class="str">'category'</span>: [<span class="str">'Food'</span>, <span class="str">'Tech'</span>, <span class="str">'Food'</span>, <span class="str">'Transport'</span>, <span class="str">'Tech'</span>],
+    <span class="str">'age'</span>:      [<span class="num">25</span>, <span class="num">34</span>, <span class="num">22</span>, np.nan, <span class="num">45</span>],
+    <span class="str">'is_fraud'</span>: [<span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">1</span>]
+&#125;)
+X = df.<span class="fn">drop</span>(<span class="str">'is_fraud'</span>, axis=<span class="num">1</span>)
+y = df[<span class="str">'is_fraud'</span>]
+X_train, X_test, y_train, y_test = <span class="fn">train_test_split</span>(X, y, random_state=<span class="num">42</span>)
+
+<span class="cm"># 2. Log transform for skewed monetary amounts</span>
+log_t = <span class="cl">FunctionTransformer</span>(np.log1p, feature_names_out=<span class="str">'one-to-one'</span>)
+
+<span class="cm"># 3. Sub-pipelines for each column type</span>
+amount_pipe = <span class="cl">Pipeline</span>([(<span class="str">'imp'</span>, <span class="cl">SimpleImputer</span>(strategy=<span class="str">'median'</span>)),
+                         (<span class="str">'log'</span>, log_t), (<span class="str">'sc'</span>, <span class="cl">StandardScaler</span>())])
+
+age_pipe    = <span class="cl">Pipeline</span>([(<span class="str">'imp'</span>, <span class="cl">SimpleImputer</span>(strategy=<span class="str">'mean'</span>)),
+                         (<span class="str">'sc'</span>,  <span class="cl">StandardScaler</span>())])
+
+cat_pipe    = <span class="cl">Pipeline</span>([(<span class="str">'imp'</span>, <span class="cl">SimpleImputer</span>(strategy=<span class="str">'constant'</span>, fill_value=<span class="str">'Unknown'</span>)),
+                         (<span class="str">'ohe'</span>, <span class="cl">OneHotEncoder</span>(handle_unknown=<span class="str">'ignore'</span>, sparse_output=<span class="kw">False</span>))])
+
+<span class="cm"># 4. Combine into a master preprocessor</span>
+pre = <span class="cl">ColumnTransformer</span>([(<span class="str">'amt'</span>, amount_pipe, [<span class="str">'amount'</span>]),
+                          (<span class="str">'age'</span>, age_pipe,    [<span class="str">'age'</span>]),
+                          (<span class="str">'cat'</span>, cat_pipe,    [<span class="str">'category'</span>])])
+
+<span class="cm"># 5. Full model pipeline — scaler learns ONLY from training data</span>
+pipe = <span class="cl">Pipeline</span>([(<span class="str">'pre'</span>, pre), (<span class="str">'clf'</span>, <span class="cl">GradientBoostingClassifier</span>(random_state=<span class="num">42</span>))])
+pipe.<span class="fn">fit</span>(X_train, y_train)
+
+<span class="cm"># 6. Inference on raw new data — pipeline handles everything automatically</span>
+new = pd.<span class="cl">DataFrame</span>([&#123;<span class="str">'amount'</span>: <span class="num">350.0</span>, <span class="str">'category'</span>: <span class="str">'Tech'</span>, <span class="str">'age'</span>: np.nan&#125;])
+prob = pipe.<span class="fn">predict_proba</span>(new)[<span class="num">0</span>][<span class="num">1</span>]
+<span class="fn">print</span>(<span class="str">f"Fraud probability: &#123;prob:.2%&#125;"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+CYCLICAL TIME ENCODING — The Hour Problem
+
+LINEAR (broken): model sees hour 23 and hour 0 as 23 units apart
+  0──1──2──...──10──...──20──21──22──23
+  ^                                  |
+  |__________________________________|  Huge gap! But they're 1 hr apart.
+
+SOLUTION: Map to a circle using sin/cos
+  x_sin = sin(2 * pi * hour / 24)
+  x_cos = cos(2 * pi * hour / 24)
+
+         12 AM (0)
+           *
+      23 * | * 1          Hour 23 and hour 0 are now
+    22 *   |   * 2        physically adjacent on the circle.
+   21 *    |    * 3       The model can now learn that
+    20 *   |   * 4        late-night patterns are continuous.
+      19 * | * 5
+           *
+         12 PM
+
+FEATURE ENGINEERING PIPELINE (Production Architecture):
+
+  Raw Data (JSON/CSV)
+       │
+  ┌────▼──────────────────────────────────────┐
+  │ SPLIT first → Train / Val / Test           │
+  └────┬───────────────────────────────────────┘
+       │ (fit transforms ONLY on train)
+  ┌────▼──────────────────────────────────────┐
+  │ ColumnTransformer                          │
+  │  ├─ Numerical  → Impute → Log → Scale     │
+  │  ├─ Categorical → Impute → OneHotEncode   │
+  │  └─ Boolean    → PassThrough              │
+  └────┬──────────────────────────────────────┘
+       │
+  ┌────▼──────────────────────────────────────┐
+  │ Model (GBM / Neural Net / LogReg)          │
+  └────▼──────────────────────────────────────┘
+       │
+  Prediction + Probability
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">7</span> Practical Use Cases</h2>
+<p><strong>Time-series lag features:</strong> When predicting server load, today's raw date is useless. Engineers create lag features (<code>load_t-1</code>, <code>load_t-7</code>) and rolling window features (<code>7_day_moving_avg</code>) to give models historical context.</p>
+<p><strong>Geospatial features:</strong> Raw latitude/longitude pairs are nearly useless. Computing the Haversine distance between two coordinates creates highly predictive features like <code>distance_to_nearest_hospital</code> or <code>distance_from_city_center</code>.</p>
+<p><strong>TF-IDF for text:</strong> Before embedding models, text was engineered with Term Frequency-Inverse Document Frequency — a mathematical formula that gives high weight to rare, important words and penalizes common words like "the".</p>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Data Leakage (The Cardinal Sin):</strong> Applying <code>StandardScaler().fit_transform()</code> or computing imputation statistics on the full dataset before splitting leaks test-set information into training. Your model will score brilliantly in cross-validation and fail catastrophically in production. Always split first, then fit preprocessors only on training data.</div>
+<div class="callout warn">⚠️ <strong>The Dummy Variable Trap:</strong> One-Hot Encoding N categories creates N columns. For binary features, the second column is completely redundant — if not Male, must be Female. This causes perfect multicollinearity, breaking matrix-based algorithms. Use <code>drop='first'</code> to generate N-1 columns.</div>
+<div class="callout danger">❌ <strong>High-Cardinality One-Hot Encoding:</strong> One-Hot Encoding a column with 40,000 unique zip codes adds 40,000 columns. This causes RAM explosion and the curse of dimensionality. Use Target Encoding or Feature Hashing for high-cardinality categoricals.</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the precise mechanism of Target Leakage. Give an example of a feature that causes target leakage in a churn prediction model.</li>
+  <li>Your target variable (House Price) ranges from 50,000 to 50,000,000. What transformation would you apply before training a linear regression model and why?</li>
+  <li>How would you handle a categorical variable with 10,000 unique categories? Why is One-Hot Encoding a bad idea, and how does Target Encoding solve it?</li>
+  <li>What is the difference between Normalization (Min-Max) and Standardization (Z-score)? When must you use Standardization?</li>
+  <li>What is "look-ahead bias" in time-series feature engineering, and how does a rolling moving average sometimes cause it?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-features">
+  <li onclick="toggleTask(this)">Build a ColumnTransformer that applies StandardScaler to numerical columns, OneHotEncoder(drop='first') to categorical columns, and PassThrough to booleans. Verify the output shape.</li>
+  <li onclick="toggleTask(this)">Write a Python function using numpy.sin and numpy.cos to transform a Series of months (1–12) into 2D cyclical features, and verify month 12 and month 1 are numerically close.</li>
+  <li onclick="toggleTask(this)">Load the California Housing dataset. Plot a histogram of target prices (right-skewed). Apply np.log1p and plot again to see the distribution normalize.</li>
+  <li onclick="toggleTask(this)">Simulate data leakage: compute the column mean on the full dataset, fill NaNs, then split. Then do it correctly. Compare test accuracy differences.</li>
+  <li onclick="toggleTask(this)">Given a housing dataset with sq_ft and num_bedrooms, engineer sqft_per_bedroom. Train linear regression with and without this feature and compare R² scores.</li>
+</ul>

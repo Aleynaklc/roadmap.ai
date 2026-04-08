@@ -1,0 +1,143 @@
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">1</span> Simple Explanation</h2>
+<p><strong>Convolutional Neural Networks (CNNs)</strong> are a specialized family of neural networks designed to process data with a grid-like structure — most famously images, but also audio spectrograms, time-series signals, and text. While a standard feedforward network connects every neuron to every input (fully connected), CNNs use a smarter approach: they slide a small window called a <strong>filter</strong> (or kernel) across the input, detecting the same pattern everywhere in the grid.</p>
+<p>Think of it like reading a Where's Waldo book. Instead of memorizing Waldo's exact pixel location on every page, your brain learns a reusable pattern — red-and-white stripes, glasses, a woolly hat — and scans for it anywhere. A CNN does the same: it learns reusable pattern detectors (filters) that work anywhere in the image regardless of where the object appears. This property is called <strong>translation invariance</strong> and is the key reason CNNs dominate visual AI.</p>
+<p>CNNs are built from three core layer types. <strong>Convolutional layers</strong> apply learnable filters to detect features (edges, textures, shapes). <strong>Pooling layers</strong> downsample the output, discarding fine positional detail while keeping the strongest activations. <strong>Fully connected layers</strong> at the end combine all detected features into a final prediction.</p>
+<div class="callout">💡 <strong>Key insight:</strong> A fully connected layer on a 256x256 RGB image would need 196,608 weights per neuron. A CNN reuses the same 3x3x3 = 27-parameter filter across the entire image. This parameter sharing is what makes CNNs computationally feasible — and what gives them their powerful inductive bias for spatial data.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">2</span> Why It Matters for AI Engineers</h2>
+<p>Vision is the most deployed modality in production AI. Self-driving cars, medical imaging, industrial defect detection, facial recognition, satellite analysis — all use CNN backbones. Even in the age of Vision Transformers (ViTs), CNN feature extractors remain foundational in many production systems. Understanding convolutions, filter sizes, receptive fields, and pooling strategies is essential for working with any visual AI pipeline — and the intuitions transfer directly to audio and 1D signal processing.</p>
+<div class="tag-row"><span class="tag">Convolution</span><span class="tag">Filters/Kernels</span><span class="tag">Pooling</span><span class="tag">Feature Maps</span><span class="tag">Transfer Learning</span><span class="tag">ResNet</span></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">3</span> Real-World Example</h2>
+<p><strong>Diabetic Retinopathy Detection at Google Health</strong></p>
+<p>Google Health trained a CNN on 128,000 labeled retinal fundus photographs to detect diabetic retinopathy — a leading cause of blindness. The CNN learns a hierarchy of features automatically: early layers detect edges and color gradients in the retinal image. Middle layers combine these into curved vessel structures and bright spots. Deep layers recognize clinically meaningful patterns like microaneurysms and haemorrhages. The final fully connected layers classify severity across five grades.</p>
+<p>The system matched expert ophthalmologists in accuracy — and can run in rural clinics with no specialist on staff, screening hundreds of patients per hour. Transfer learning on ImageNet-pretrained CNNs gave the model powerful starting representations before fine-tuning on retinal images, reducing the labeled data requirement by orders of magnitude.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Input:</strong> An image of shape (C, H, W) — channels, height, width. For a 64x64 RGB image: (3, 64, 64).</li>
+  <li><strong>Filter (Kernel):</strong> A small grid of learnable weights, e.g. shape (3, 3, C_in). It slides across the input spatially, one position at a time.</li>
+  <li><strong>Convolution:</strong> At each position, element-wise multiply the filter with the overlapping patch and sum all products into one number. This produces one value in the output <strong>feature map</strong>. With N filters, you get N feature maps — one per filter.</li>
+  <li><strong>Activation (ReLU):</strong> Apply non-linearity to the feature map. Negative activations become zero.</li>
+  <li><strong>Pooling (Max Pool 2x2):</strong> Divide the feature map into 2x2 windows and keep only the maximum value in each. This halves spatial dimensions, reducing compute and adding a degree of translation invariance.</li>
+  <li><strong>Stacking Layers:</strong> Deeper layers combine simple features into complex ones. Layer 1 detects edges, Layer 2 detects corners and curves, Layer 3 detects object parts, Layer N detects complete objects.</li>
+  <li><strong>Flatten and Classify:</strong> After all conv+pool blocks, flatten the 3D tensor to 1D and pass through fully connected layers for the final prediction.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">class</span> <span class="cl">ImageCNN</span>(nn.<span class="cl">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, n_classes=<span class="num">10</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        <span class="cm"># Block 1: (3, 64, 64) -> (32, 32, 32)</span>
+        self.conv1 = nn.<span class="cl">Conv2d</span>(<span class="num">3</span>, <span class="num">32</span>, kernel_size=<span class="num">3</span>, padding=<span class="num">1</span>)
+        self.bn1   = nn.<span class="cl">BatchNorm2d</span>(<span class="num">32</span>)
+        self.pool1 = nn.<span class="cl">MaxPool2d</span>(<span class="num">2</span>)
+        <span class="cm"># Block 2: (32, 32, 32) -> (64, 16, 16)</span>
+        self.conv2 = nn.<span class="cl">Conv2d</span>(<span class="num">32</span>, <span class="num">64</span>, kernel_size=<span class="num">3</span>, padding=<span class="num">1</span>)
+        self.bn2   = nn.<span class="cl">BatchNorm2d</span>(<span class="num">64</span>)
+        self.pool2 = nn.<span class="cl">MaxPool2d</span>(<span class="num">2</span>)
+        <span class="cm"># Block 3: (64, 16, 16) -> (128, 8, 8)</span>
+        self.conv3 = nn.<span class="cl">Conv2d</span>(<span class="num">64</span>, <span class="num">128</span>, kernel_size=<span class="num">3</span>, padding=<span class="num">1</span>)
+        self.pool3 = nn.<span class="cl">MaxPool2d</span>(<span class="num">2</span>)
+        <span class="cm"># Classifier head</span>
+        self.dropout = nn.<span class="cl">Dropout</span>(<span class="num">0.5</span>)
+        self.fc1 = nn.<span class="cl">Linear</span>(<span class="num">128</span> * <span class="num">8</span> * <span class="num">8</span>, <span class="num">256</span>)
+        self.fc2 = nn.<span class="cl">Linear</span>(<span class="num">256</span>, n_classes)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        x = self.<span class="fn">pool1</span>(F.<span class="fn">relu</span>(self.<span class="fn">bn1</span>(self.<span class="fn">conv1</span>(x))))
+        x = self.<span class="fn">pool2</span>(F.<span class="fn">relu</span>(self.<span class="fn">bn2</span>(self.<span class="fn">conv2</span>(x))))
+        x = self.<span class="fn">pool3</span>(F.<span class="fn">relu</span>(self.<span class="fn">conv3</span>(x)))
+        x = x.<span class="fn">flatten</span>(start_dim=<span class="num">1</span>)
+        x = self.<span class="fn">dropout</span>(F.<span class="fn">relu</span>(self.<span class="fn">fc1</span>(x)))
+        <span class="kw">return</span> self.<span class="fn">fc2</span>(x)
+
+model = <span class="cl">ImageCNN</span>()
+<span class="fn">print</span>(<span class="str">f"Parameters: &#123;sum(p.numel() for p in model.parameters()):,&#125;"</span>)
+
+<span class="cm"># Trace a batch: 4 RGB images, 64x64 pixels</span>
+x = torch.<span class="fn">randn</span>(<span class="num">4</span>, <span class="num">3</span>, <span class="num">64</span>, <span class="num">64</span>)
+model.<span class="fn">eval</span>()
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    logits = model(x)
+<span class="fn">print</span>(<span class="str">f"Input:  &#123;x.shape&#125;"</span>)       <span class="cm"># [4, 3, 64, 64]</span>
+<span class="fn">print</span>(<span class="str">f"Output: &#123;logits.shape&#125;"</span>)  <span class="cm"># [4, 10]</span>
+
+<span class="cm"># Transfer Learning: load pretrained ResNet, replace the head</span>
+<span class="kw">import</span> torchvision.models <span class="kw">as</span> models
+resnet = models.<span class="fn">resnet18</span>(weights=<span class="str">'DEFAULT'</span>)
+resnet.fc = nn.<span class="cl">Linear</span>(resnet.fc.in_features, <span class="num">5</span>)  <span class="cm"># 5-class task</span>
+<span class="cm"># Freeze backbone, only train the new head</span>
+<span class="kw">for</span> name, param <span class="kw">in</span> resnet.<span class="fn">named_parameters</span>():
+    <span class="kw">if</span> <span class="str">'fc'</span> <span class="kw">not</span> <span class="kw">in</span> name:
+        param.requires_grad = <span class="kw">False</span>
+trainable = <span class="fn">sum</span>(p.<span class="fn">numel</span>() <span class="kw">for</span> p <span class="kw">in</span> resnet.<span class="fn">parameters</span>() <span class="kw">if</span> p.requires_grad)
+<span class="fn">print</span>(<span class="str">f"Trainable params (head only): &#123;trainable:,&#125;"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+CONVOLUTION OPERATION
+
+  Input patch (5x5):         3x3 Filter:       Output (1 value):
+  ┌──┬──┬──┬──┬──┐           ┌──┬──┬──┐
+  │1 │2 │3 │0 │1 │           │-1│ 0│ 1│        element-wise ×
+  ├──┼──┼──┼──┼──┤           ├──┼──┼──┤        then sum all
+  │0 │1 │2 │3 │0 │     ×     │-2│ 0│ 2│   =    = one cell in
+  ├──┼──┼──┼──┼──┤           ├──┼──┼──┤          feature map
+  │1 │0 │1 │2 │1 │           │-1│ 0│ 1│
+  └──┴──┴──┴──┴──┘           └──┴──┴──┘
+  Filter slides across the ENTIRE input image (stride=1)
+
+SHAPE FLOW THROUGH THE CNN:
+  Input RGB:          (3,  64, 64)
+  After Conv1+Pool:   (32, 32, 32)  32 filters detect low-level features
+  After Conv2+Pool:   (64, 16, 16)  64 filters combine into mid-level
+  After Conv3+Pool:   (128, 8,  8)  128 filters detect high-level patterns
+  Flatten:            (8192,)       128 x 8 x 8
+  FC1 + ReLU:         (256,)
+  FC2 output:         (10,)         one logit per class
+
+WHAT EACH LAYER LEARNS:
+  Layer 1:  edges, colour blobs, gradients
+  Layer 2:  corners, curves, simple textures
+  Layer 3:  eyes, wheels, leaves — object parts
+  Deep:     "this is a dog", "this is a tumour"
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">7</span> Practical Use Cases</h2>
+<p><strong>Medical imaging:</strong> CNNs segment tumours in CT scans, detect diabetic retinopathy, and locate fractures — often at specialist-level accuracy. They process hundreds of images per second, enabling scalable screening.</p>
+<p><strong>Autonomous driving:</strong> Every self-driving vehicle uses CNN backbones (ResNet, EfficientNet, YOLO) to detect pedestrians, vehicles, and traffic signs from camera feeds at under 10ms latency.</p>
+<p><strong>Industrial defect detection:</strong> Cameras mounted on assembly lines use CNNs to inspect products for scratches and misalignments at speeds no human inspector could match.</p>
+<p><strong>Document AI:</strong> CNNs extract text regions, classify document types (invoice, contract, receipt), and detect tables in digitized enterprise documents before downstream NLP.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Training from scratch when pretrained weights exist:</strong> ImageNet-pretrained CNNs give you powerful feature representations for free. Unless your domain is radically different, always start from pretrained weights and fine-tune. Training from scratch requires orders of magnitude more data and compute.</div>
+<div class="callout warn">⚠️ <strong>Forgetting to normalize inputs to match pretrained model statistics:</strong> Pretrained models expect pixel values normalized to ImageNet mean=[0.485, 0.456, 0.406] and std=[0.229, 0.224, 0.225]. Using raw 0-255 values with a pretrained backbone produces completely wrong feature activations.</div>
+<div class="callout danger">❌ <strong>Applying Softmax before CrossEntropyLoss:</strong> PyTorch's CrossEntropyLoss expects raw logits and applies Softmax internally. Applying Softmax in your forward() method and then passing to CrossEntropyLoss double-applies it, destroying gradient flow silently.</div>
+<div class="callout warn">⚠️ <strong>No data augmentation on small datasets:</strong> CNNs overfit aggressively on fewer than ~10,000 images. Always apply random flips, rotations, colour jitter, and crops during training. Without augmentation, the model memorizes lighting conditions and exact pixel positions from training images.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the convolution operation. What is a feature map and how does the number of filters determine the output depth?</li>
+  <li>What is the "receptive field" of a neuron in a deep CNN? Why do deeper layers have larger receptive fields?</li>
+  <li>Compare Max Pooling and Average Pooling. When would you prefer each, and what has largely replaced both in modern architectures like EfficientNet?</li>
+  <li>Explain transfer learning for CNNs. What layers do you freeze, what do you fine-tune, and how does your available data volume affect this decision?</li>
+  <li>What is the key innovation in ResNets? What training problem do residual connections solve and how?</li>
+  <li>Input image: (3, 224, 224). Apply Conv2d(3, 64, kernel_size=3, padding=1, stride=1). What is the output shape and how many learnable parameters does this layer have?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-cnn">
+  <li onclick="toggleTask(this)">Implement a 3x3 convolution from scratch using NumPy: write a function that slides a filter over a 2D grayscale image and produces the feature map without using any deep learning libraries.</li>
+  <li onclick="toggleTask(this)">Build a CNN in PyTorch for CIFAR-10. Print the tensor shape after every single layer during a forward pass to verify all dimensions are correct before training.</li>
+  <li onclick="toggleTask(this)">Load a pretrained ResNet-18 and visualize the 64 filters in its first convolutional layer as a grid of images — observe what low-level features the network learned from ImageNet.</li>
+  <li onclick="toggleTask(this)">Fine-tune a pretrained EfficientNet-B0 on a 5-class dataset. Freeze all layers except the final head and compare validation accuracy after 5 epochs vs training the full network from scratch.</li>
+  <li onclick="toggleTask(this)">Train a CNN with and without data augmentation (RandomHorizontalFlip, RandomCrop, ColorJitter) on 500 images. Plot training vs validation accuracy curves for both to see the overfitting difference.</li>
+</ul>

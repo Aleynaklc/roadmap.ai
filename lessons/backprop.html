@@ -1,0 +1,140 @@
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">1</span> Simple Explanation</h2>
+<p>If the Forward Pass is how a neural network makes a prediction, <strong>Backpropagation</strong> is how it learns from its mistakes. It is the most important algorithm in the history of modern AI.</p>
+<p>Imagine you're blindfolded on a mountain and want to reach the valley (minimize loss). You take a step (a prediction), and your guide tells you your current altitude (the error). To know which direction to step next, you need to feel the slope of the ground beneath your feet. Backpropagation computes that slope — the gradient — for every single parameter in the network simultaneously.</p>
+<p>It works by applying the <strong>Chain Rule of Calculus</strong>. The algorithm starts at the final error (the loss), then moves backward through every layer — distributing the "blame" for that error to each weight and bias. If a specific weight contributed heavily to a wrong prediction, backpropagation computes a large gradient for it, signaling the optimizer to adjust that weight significantly.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Backpropagation does NOT update the weights — it only computes the gradients (the direction and slope). The Optimizer (SGD, Adam, AdamW) uses those gradients to actually perform the weight update. These are two distinct steps: backprop computes, optimizer applies.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">2</span> Why It Matters for AI Engineers</h2>
+<p>Modern frameworks like PyTorch and TensorFlow abstract backpropagation via <strong>Autograd</strong> — you call <code>loss.backward()</code> and millions of partial derivatives are computed automatically. So why must you understand it?</p>
+<p>Because training fails constantly, and the abstraction leaks when it does. <em>Vanishing Gradients</em> cause loss to plateau because derivatives chain-multiply down to near-zero through deep layers. <em>Exploding Gradients</em> cause loss to become NaN because derivatives multiply into infinity. Without understanding how the chain rule propagates through activation functions and layer stacks, you cannot diagnose these failures, cannot choose the right fix (Gradient Clipping vs Residual Connections vs BatchNorm), and cannot design custom differentiable loss functions.</p>
+<div class="tag-row"><span class="tag">Chain Rule</span><span class="tag">Gradients</span><span class="tag">Autograd</span><span class="tag">Loss Function</span><span class="tag">Vanishing Gradients</span><span class="tag">optimizer.step()</span></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">3</span> Real-World Example</h2>
+<p><strong>Training an LLM: Backprop at Scale</strong></p>
+<p>When training LLaMA 3 (70 billion parameters), the forward pass predicts the next token. Say the target is "Apple" but the model predicted "Banana". Cross-Entropy Loss computes a high error. Backpropagation then fires: it calculates dL/dy at the output, chains the gradient backward through all 80 Transformer layers, computing how much each attention weight, each feedforward weight, and each embedding vector contributed to the error. This gradient computation runs across thousands of synchronized H100 GPUs simultaneously. Every training step is backpropagation at this scale. The entire LLM revolution rests on this single algorithm.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Forward Pass:</strong> Data flows input → hidden layers → output. Intermediate values are saved in memory.</li>
+  <li><strong>Compute Loss:</strong> Compare prediction to ground truth using a loss function (MSE for regression, Cross-Entropy for classification). This produces a scalar L.</li>
+  <li><strong>Output Gradient:</strong> Compute dL/dy_pred — how much the loss changes if the final output changes slightly.</li>
+  <li><strong>Chain Rule (backward):</strong> To find how a weight deep in the network affected the loss, multiply local gradients along the path: <br><code>dL/dW₁ = (dL/dy) × (dy/dH₂) × (dH₂/dH₁) × (dH₁/dW₁)</code></li>
+  <li><strong>Store Gradients:</strong> Each parameter's gradient is stored in its <code>.grad</code> attribute in PyTorch.</li>
+  <li><strong>Weight Update:</strong> The optimizer uses the stored gradients: <code>W_new = W_old − lr × gradient</code>.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">5</span> Python Code Example</h2>
+<p>Manual calculus verification side-by-side with PyTorch Autograd — proving they produce identical results.</p>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+
+<span class="cm"># Simple model: y_pred = w * x,  Loss = (y_pred - y_true)^2</span>
+x      = <span class="num">2.0</span>
+y_true = <span class="num">10.0</span>
+w      = <span class="num">3.0</span>
+
+<span class="cm"># --- MANUAL CALCULUS ---</span>
+y_pred  = w * x                      <span class="cm"># 6.0</span>
+loss    = (y_pred - y_true) ** <span class="num">2</span>    <span class="cm"># (6-10)^2 = 16.0</span>
+
+<span class="cm"># Chain rule: dL/dw = dL/dy_pred * dy_pred/dw</span>
+dL_dy   = <span class="num">2</span> * (y_pred - y_true)      <span class="cm"># 2*(6-10) = -8.0</span>
+dy_dw   = x                           <span class="cm"># d(w*x)/dw = x = 2.0</span>
+grad_manual = dL_dy * dy_dw           <span class="cm"># -8 * 2 = -16.0</span>
+<span class="fn">print</span>(<span class="str">f"Manual gradient: &#123;grad_manual&#125;"</span>)   <span class="cm"># -16.0</span>
+
+<span class="cm"># --- PYTORCH AUTOGRAD ---</span>
+x_t     = torch.<span class="fn">tensor</span>([<span class="num">2.0</span>])
+y_true_t = torch.<span class="fn">tensor</span>([<span class="num">10.0</span>])
+w_t     = torch.<span class="fn">tensor</span>([<span class="num">3.0</span>], requires_grad=<span class="kw">True</span>)  <span class="cm"># track this tensor!</span>
+
+y_pred_t = w_t * x_t
+loss_t   = (y_pred_t - y_true_t) ** <span class="num">2</span>
+loss_t.<span class="fn">backward</span>()                      <span class="cm"># chain rule applied automatically</span>
+
+<span class="fn">print</span>(<span class="str">f"Autograd gradient: &#123;w_t.grad.item()&#125;"</span>)  <span class="cm"># -16.0 — matches manual!</span>
+
+<span class="cm"># --- WEIGHT UPDATE (Optimizer step) ---</span>
+lr = <span class="num">0.01</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():            <span class="cm"># don't track the update itself</span>
+    w_t -= lr * w_t.grad        <span class="cm"># w = 3.0 - 0.01*(-16) = 3.16 → moving toward 5</span>
+<span class="fn">print</span>(<span class="str">f"Updated w: &#123;w_t.item():.4f&#125;"</span>)
+
+<span class="cm"># --- THE PYTORCH TRAINING LOOP PATTERN ---</span>
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+model     = nn.<span class="cl">Linear</span>(<span class="num">1</span>, <span class="num">1</span>)
+optimizer = torch.optim.<span class="cl">Adam</span>(model.parameters(), lr=<span class="num">0.01</span>)
+criterion = nn.<span class="cl">MSELoss</span>()
+
+<span class="kw">for</span> epoch <span class="kw">in</span> <span class="fn">range</span>(<span class="num">3</span>):
+    optimizer.<span class="fn">zero_grad</span>()         <span class="cm"># 1. CLEAR accumulated gradients</span>
+    output = model(x_t.<span class="fn">unsqueeze</span>(<span class="num">0</span>))
+    loss   = <span class="fn">criterion</span>(output, y_true_t.<span class="fn">unsqueeze</span>(<span class="num">0</span>))
+    loss.<span class="fn">backward</span>()               <span class="cm"># 2. COMPUTE gradients</span>
+    optimizer.<span class="fn">step</span>()              <span class="cm"># 3. APPLY gradients</span>
+    <span class="fn">print</span>(<span class="str">f"Epoch &#123;epoch+1&#125;: loss=&#123;loss.item():.4f&#125;"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+COMPUTATIONAL GRAPH — Forward and Backward
+
+  Forward pass (builds the graph):
+  [x=2] ──× w=3──► [multiply=6] ──-10──► [subtract=-4] ──²──► [loss=16]
+
+  Backward pass (chain rule, right to left):
+  dL/d(loss) = 1.0  (always)
+  dL/d(sub)  = 2 * (-4) = -8           ← derivative of x²
+  dL/d(mult) = -8 * 1 = -8             ← derivative of (pred - true)
+  dL/dw      = -8 * x = -8 * 2 = -16  ← derivative of w*x w.r.t. w
+
+THE VANISHING GRADIENT PROBLEM:
+
+  Sigmoid derivative peaks at 0.25.
+  In a 10-layer sigmoid network:
+  Gradient at output:        1.00
+  After 1 sigmoid layer:     0.25
+  After 2 sigmoid layers:    0.063
+  After 5 sigmoid layers:    0.001
+  After 10 sigmoid layers:   0.0000001  ← near zero! Layer learns nothing.
+
+  FIX 1: Use ReLU (derivative = 1.0 for x>0, never shrinks)
+  FIX 2: Residual Connections (add skip connections to bypass layers)
+  FIX 3: Batch Normalization (re-centers activations before next layer)
+
+THE HOLY TRINITY OF PYTORCH TRAINING:
+  for batch in dataloader:
+      optimizer.zero_grad()   ← CLEAR (gradients accumulate by default!)
+      loss = criterion(model(X), y)
+      loss.backward()         ← COMPUTE gradients
+      optimizer.step()        ← APPLY gradients
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">7</span> Practical Use Cases</h2>
+<p><strong>Transfer learning (freezing layers):</strong> When fine-tuning a pretrained ResNet, you set <code>requires_grad=False</code> on early layers. Backpropagation skips frozen layers entirely — their gradients are never computed — saving massive compute and preserving learned features.</p>
+<p><strong>Gradient clipping for RNNs and LLMs:</strong> In recurrent networks and long transformers, gradients can explode across many time steps. <code>torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)</code> caps gradient magnitude before the optimizer step, preventing NaN losses.</p>
+<p><strong>Custom differentiable losses:</strong> When writing custom loss functions (e.g., a focal loss for extreme class imbalance), every operation must be differentiable. Non-differentiable ops like <code>argmax</code> produce zero gradients silently. Use differentiable approximations like Softmax or Gumbel-Softmax instead.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Forgetting optimizer.zero_grad():</strong> PyTorch accumulates gradients by design. If you forget this call at the start of each training step, gradients from previous batches add to the current batch's gradients — causing the optimizer to take incorrect, compounding steps. Loss will oscillate wildly or diverge.</div>
+<div class="callout warn">⚠️ <strong>Memory leak during validation:</strong> During the forward pass, PyTorch saves intermediate activations in memory to enable backpropagation later. If you run your validation loop without <code>with torch.no_grad():</code>, PyTorch builds and stores this graph unnecessarily, causing GPU out-of-memory errors.</div>
+<div class="callout danger">❌ <strong>Using non-differentiable operations in custom layers:</strong> Operations like <code>torch.argmax</code>, integer rounding, or Python <code>if</code> statements on tensor values are not differentiable. PyTorch will not error — it will silently produce zero or undefined gradients, and the layer will simply not learn.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the mathematical cause of the vanishing gradient problem. How do residual connections (ResNets) solve it during backpropagation?</li>
+  <li>What is the difference between Backpropagation and Gradient Descent? Which one computes gradients and which one updates weights?</li>
+  <li>Why must you call optimizer.zero_grad() in the PyTorch training loop? What happens mathematically if you forget it?</li>
+  <li>What is the derivative of ReLU for x &gt; 0 and x &lt; 0? How does this cause the "dying ReLU" problem?</li>
+  <li>If you use torch.argmax in a custom loss function, what happens to the gradient flowing through that operation and why?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-backprop">
+  <li onclick="toggleTask(this)">Write the function f(x,y,z) = (x+y) * z. Compute all partial derivatives manually on paper using the chain rule. Then verify using PyTorch Autograd with requires_grad=True tensors.</li>
+  <li onclick="toggleTask(this)">Create a 2-layer PyTorch network. Run a forward pass and backward pass. Print the .grad of the first layer's weights. Then run backward() AGAIN without zeroing gradients — observe the doubling effect.</li>
+  <li onclick="toggleTask(this)">Implement the full PyTorch training loop from scratch (zero_grad, forward, loss, backward, step) for linear regression. Track loss per epoch and plot the convergence curve.</li>
+  <li onclick="toggleTask(this)">Demonstrate gradient clipping: construct a scenario where gradients explode (large learning rate, many layers). Apply torch.nn.utils.clip_grad_norm_ and compare the loss curve with and without clipping.</li>
+  <li onclick="toggleTask(this)">Freeze the first 2 layers of a 4-layer network by setting requires_grad=False. Run backprop and verify that frozen layer .grad attributes remain None while unfrozen layers have computed gradients.</li>
+</ul>

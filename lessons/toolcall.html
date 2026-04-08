@@ -1,0 +1,167 @@
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">1</span> Simple Explanation</h2>
+<p><strong>Tool Calling</strong> (also called Function Calling) is a capability that allows an LLM to request the execution of external functions during a conversation. Instead of generating only text, the model can output a structured message saying: "I need to call this specific function with these specific arguments." Your application code then executes the function, returns the result to the model, and the model uses that result to continue the conversation.</p>
+<p>This transforms LLMs from text generators into reasoning engines that can interact with the real world. Without tool calling, a model can only work with information in its training data or context window. With tool calling, it can check live stock prices, search the web, query your database, send emails, book appointments, control IoT devices, or perform any operation you implement as a function.</p>
+<p>The key difference from simple code execution is that the <em>model decides</em> which tool to call, when to call it, and what arguments to pass — based on its reasoning about the user's intent. The developer defines what tools are available, not when they're used. This is the foundation of autonomous AI agents.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Tool calling is type-safe by design. You provide a JSON schema that describes each function's parameters. The model is constrained to only call functions you've defined, with arguments that match the schema. This means you can validate tool calls before execution — preventing the model from calling nonexistent functions or passing wrong argument types.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">2</span> Why It Matters for AI Engineers</h2>
+<p>Tool calling is what makes the difference between a chatbot and an AI agent. Every production AI agent you build — whether it's a customer service bot that can actually check order status, a coding assistant that can run tests, or a data analyst that can query your database — is built on tool calling at its core. Understanding the exact API format, how to structure tool schemas, how to handle parallel tool calls, and how to prevent tool misuse are all critical production engineering skills.</p>
+<div class="tag-row"><span class="tag">Function Calling</span><span class="tag">JSON Schema</span><span class="tag">Parallel Tools</span><span class="tag">Tool Choice</span><span class="tag">Anthropic Tools</span><span class="tag">OpenAI Tools</span></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">3</span> Real-World Example</h2>
+<p><strong>OpenAI's ChatGPT Code Interpreter</strong></p>
+<p>ChatGPT's Code Interpreter (now called Advanced Data Analysis) is implemented as a tool. When you upload a CSV and ask "What are the top 10 customers by revenue?", the model doesn't try to answer from its training data. Instead it calls a <code>python_execution</code> tool with code it writes. The tool executes the code in a sandboxed environment and returns the output. The model reads the output and synthesizes a natural language answer, often calling the tool multiple times iteratively — first to load the data, then to analyze it, then to generate a chart. This is exactly the tool-calling loop at work.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Define Tools:</strong> Write Python functions for your tools. Create JSON schemas that describe each function's name, description, and parameters. The description is critical — the model reads it to decide when to call the tool.</li>
+  <li><strong>Send to Model:</strong> Include the tool schemas in your API call alongside the user message. The model now knows what tools are available.</li>
+  <li><strong>Model Decision:</strong> The model reasons about whether a tool call is needed. If yes, it returns a response with <code>stop_reason: "tool_use"</code> and a structured tool call block.</li>
+  <li><strong>Execute Tool:</strong> Your code reads the tool name and arguments from the response, calls the corresponding Python function, and captures the result.</li>
+  <li><strong>Return Result:</strong> Send the tool result back to the model in a new message with role "tool". The model incorporates this information into its next response.</li>
+  <li><strong>Loop:</strong> If the model needs more tools, repeat. When it has enough information, it generates a final text response.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> json
+<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+
+client = <span class="cl">Anthropic</span>()
+
+<span class="cm"># ── Define tool implementations ────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">get_weather</span>(city: str) -> dict:
+    <span class="cm"># In production, call a real weather API</span>
+    return &#123;<span class="str">"city"</span>: city, <span class="str">"temp_c"</span>: <span class="num">22</span>, <span class="str">"condition"</span>: <span class="str">"Sunny"</span>&#125;
+
+<span class="kw">def</span> <span class="fn">search_database</span>(query: str, table: str) -> list:
+    <span class="cm"># In production, run actual SQL</span>
+    return [&#123;<span class="str">"id"</span>: <span class="num">1</span>, <span class="str">"result"</span>: <span class="str">f"Mock result for &#123;query&#125; in &#123;table&#125;"</span>&#125;]
+
+TOOLS_MAP = &#123;<span class="str">"get_weather"</span>: get_weather, <span class="str">"search_database"</span>: search_database&#125;
+
+<span class="cm"># ── JSON Schemas (what the model sees) ────────────────────</span>
+TOOL_SCHEMAS = [
+    &#123;
+        <span class="str">"name"</span>: <span class="str">"get_weather"</span>,
+        <span class="str">"description"</span>: <span class="str">"Get current weather conditions for a city. Use when the user asks about weather, temperature, or climate."</span>,
+        <span class="str">"input_schema"</span>: &#123;
+            <span class="str">"type"</span>: <span class="str">"object"</span>,
+            <span class="str">"properties"</span>: &#123;
+                <span class="str">"city"</span>: &#123;<span class="str">"type"</span>: <span class="str">"string"</span>, <span class="str">"description"</span>: <span class="str">"City name, e.g. 'London'"</span>&#125;
+            &#125;,
+            <span class="str">"required"</span>: [<span class="str">"city"</span>]
+        &#125;
+    &#125;,
+    &#123;
+        <span class="str">"name"</span>: <span class="str">"search_database"</span>,
+        <span class="str">"description"</span>: <span class="str">"Search a database table for records. Use to retrieve specific data."</span>,
+        <span class="str">"input_schema"</span>: &#123;
+            <span class="str">"type"</span>: <span class="str">"object"</span>,
+            <span class="str">"properties"</span>: &#123;
+                <span class="str">"query"</span>: &#123;<span class="str">"type"</span>: <span class="str">"string"</span>&#125;,
+                <span class="str">"table"</span>: &#123;<span class="str">"type"</span>: <span class="str">"string"</span>, <span class="str">"enum"</span>: [<span class="str">"customers"</span>, <span class="str">"orders"</span>, <span class="str">"products"</span>]&#125;
+            &#125;,
+            <span class="str">"required"</span>: [<span class="str">"query"</span>, <span class="str">"table"</span>]
+        &#125;
+    &#125;
+]
+
+<span class="cm"># ── Tool calling loop ─────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">run_with_tools</span>(user_message: str) -> str:
+    messages = [&#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_message&#125;]
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        response = client.messages.<span class="fn">create</span>(
+            model=<span class="str">"claude-opus-4-6"</span>,
+            max_tokens=<span class="num">1024</span>,
+            tools=TOOL_SCHEMAS,
+            messages=messages
+        )
+
+        <span class="cm"># Done — no tool calls needed</span>
+        <span class="kw">if</span> response.stop_reason == <span class="str">"end_turn"</span>:
+            <span class="kw">return</span> response.content[<span class="num">0</span>].text
+
+        <span class="cm"># Execute tool calls and collect results</span>
+        tool_results = []
+        <span class="kw">for</span> block <span class="kw">in</span> response.content:
+            <span class="kw">if</span> block.type == <span class="str">"tool_use"</span>:
+                fn = TOOLS_MAP[block.name]
+                result = fn(**block.input)
+                tool_results.<span class="fn">append</span>(&#123;
+                    <span class="str">"type"</span>: <span class="str">"tool_result"</span>,
+                    <span class="str">"tool_use_id"</span>: block.id,
+                    <span class="str">"content"</span>: json.<span class="fn">dumps</span>(result)
+                &#125;)
+
+        <span class="cm"># Add assistant response and tool results to history</span>
+        messages.<span class="fn">append</span>(&#123;<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: response.content&#125;)
+        messages.<span class="fn">append</span>(&#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: tool_results&#125;)
+
+answer = <span class="fn">run_with_tools</span>(<span class="str">"What's the weather in Paris and do I have any pending orders?"</span>)
+<span class="fn">print</span>(answer)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+TOOL CALLING FLOW
+
+  User: "What's the weather in Paris?"
+        │
+        ▼
+  API Call (with tool schemas)
+        │
+        ▼
+  Model Response (stop_reason: "tool_use"):
+  ┌─────────────────────────────────────┐
+  │ tool_use:                           │
+  │   name: "get_weather"               │
+  │   id: "toolu_abc123"                │
+  │   input: {"city": "Paris"}          │
+  └─────────────────────────────────────┘
+        │
+        ▼
+  Your Code Executes: get_weather("Paris")
+  Result: {"temp_c": 18, "condition": "Cloudy"}
+        │
+        ▼
+  Send back to model:
+  ┌─────────────────────────────────────┐
+  │ tool_result:                        │
+  │   tool_use_id: "toolu_abc123"       │
+  │   content: {"temp_c": 18, ...}      │
+  └─────────────────────────────────────┘
+        │
+        ▼
+  Model Final Response:
+  "The weather in Paris is 18°C and cloudy."
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">7</span> Practical Use Cases</h2>
+<p><strong>Database query interface:</strong> Define a <code>run_sql</code> tool that executes read-only queries against your analytics database. Users ask natural language questions like "How many users signed up last week?" — the model writes the SQL, calls the tool, and returns a synthesized answer with the actual numbers.</p>
+<p><strong>Form automation:</strong> Define tools for each step of a complex form (validate_address, check_availability, create_booking). The model guides the user conversationally while calling each tool at the appropriate step, handling validation errors gracefully in natural language.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Vague tool descriptions:</strong> The model decides which tool to call based on the description. "Get data" is useless. "Retrieve current weather conditions including temperature and precipitation for a specified city" is clear. Invest as much care in descriptions as in function implementations.</div>
+<div class="callout danger">❌ <strong>Not handling tool errors:</strong> Tools fail — APIs go down, databases timeout, validation fails. If you return an error as a tool result, a good model will adapt and inform the user. If you let the exception propagate and crash the loop, the entire conversation dies.</div>
+<div class="callout warn">⚠️ <strong>Allowing write operations without confirmation:</strong> If a tool can send emails, delete records, or make purchases, require an explicit confirmation step before execution. Models can misinterpret intent. Never allow irreversible actions without a human-in-the-loop confirmation gate.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the tool calling flow step by step. What does the model return when it wants to call a tool, and how does your code respond?</li>
+  <li>How do tool descriptions affect model behavior? Give an example of a bad vs. good description for the same tool.</li>
+  <li>What is parallel tool calling? When does a model use it and how does your code handle multiple simultaneous tool calls?</li>
+  <li>How would you prevent a model from calling a dangerous tool (like deleting database records) without user confirmation?</li>
+  <li>What is tool_choice: "required" vs "auto"? When would you force a specific tool call?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-toolcall">
+  <li onclick="toggleTask(this)">Build a 3-tool assistant (calculator, unit_converter, text_word_counter) with full tool calling loop. Test with 5 different user messages that require different tools and verify correct tool selection.</li>
+  <li onclick="toggleTask(this)">Implement error handling: make one of your tools fail 50% of the time randomly. Verify the model handles the error gracefully and informs the user without crashing the loop.</li>
+  <li onclick="toggleTask(this)">Build a parallel tool calling demo: ask "What's the weather in London, Paris, and Tokyo?" and handle the response where the model calls get_weather 3 times simultaneously in one turn.</li>
+  <li onclick="toggleTask(this)">Implement a "confirmation gate": add a send_email tool but intercept calls before execution, print "Model wants to send email to X with subject Y — approve? (y/n)", and only execute if approved.</li>
+  <li onclick="toggleTask(this)">Build a natural language SQL interface: define a run_sql tool that executes SELECT queries on a SQLite database. Test with 10 natural language questions and verify the model writes correct SQL and returns meaningful answers.</li>
+</ul>

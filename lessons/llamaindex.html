@@ -1,0 +1,131 @@
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">1</span> Simple Explanation</h2>
+<p><strong>LlamaIndex</strong> (formerly GPT Index) is an open-source data framework specifically designed to connect LLMs with your own data for retrieval and querying. While LangChain is a general-purpose LLM application framework (chains, agents, tools), LlamaIndex is laser-focused on one problem: <em>how do you efficiently index, retrieve, and query over large, heterogeneous data sources?</em></p>
+<p>LlamaIndex introduces several unique abstractions. <strong>Data connectors</strong> (called "Readers") ingest data from dozens of sources: PDFs, Notion, Google Drive, Slack, SQL databases, GitHub repos, YouTube videos. <strong>Indexes</strong> structure the ingested data in different ways — a VectorStoreIndex for semantic search, a SummaryIndex for sequential summarization, a KnowledgeGraphIndex for relationship-aware retrieval. <strong>Query engines</strong> convert natural language questions into retrieval operations against these indexes and return synthesized answers.</p>
+<div class="callout">💡 <strong>Key insight:</strong> LlamaIndex vs LangChain is not either/or — they're complementary. LlamaIndex is better for the data ingestion and retrieval layer (RAG infrastructure). LangChain is better for the orchestration and agent layer. Many production systems use both together: LlamaIndex manages the knowledge base, LangChain orchestrates the agentic behavior.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">2</span> Why It Matters for AI Engineers</h2>
+<p>LlamaIndex handles the hardest part of building production RAG systems: data ingestion at scale. Loading, parsing, cleaning, and chunking data from 20 different file formats is unglamorous but critical engineering work. LlamaIndex does this out of the box with 160+ data loaders. Its advanced retrieval strategies — sub-question decomposition, recursive retrieval, query rewriting — directly address the quality gaps in naive RAG implementations. If your RAG system is returning poor results, LlamaIndex's retrieval primitives are the toolkit to fix it.</p>
+<div class="tag-row"><span class="tag">Data Connectors</span><span class="tag">Nodes</span><span class="tag">VectorStoreIndex</span><span class="tag">Query Engine</span><span class="tag">Sub-Questions</span><span class="tag">Metadata Filters</span></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">3</span> Real-World Example</h2>
+<p><strong>Notion's AI Q&A Feature</strong></p>
+<p>Notion's AI assistant uses LlamaIndex as the core retrieval infrastructure. When a user asks "What did we decide about the product roadmap in Q3?", LlamaIndex's query engine decomposes this into sub-questions if needed, retrieves the most relevant Notion pages using vector search with metadata filters (date range, workspace), applies re-ranking to improve precision, and synthesizes a response from the retrieved content. The architecture handles millions of documents per workspace with sub-second retrieval latency. LlamaIndex's built-in Notion reader handles the complex Notion API (blocks, databases, nested pages) so the team doesn't need to maintain custom ingestion logic.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Load:</strong> Use a data connector (SimpleDirectoryReader, PDFReader, NotionReader) to load raw documents into LlamaIndex's Document format.</li>
+  <li><strong>Transform:</strong> Apply node parsers to chunk documents into Node objects. Each Node has text, metadata, and relationships to other nodes (parent document, previous/next chunk).</li>
+  <li><strong>Index:</strong> Insert Nodes into an index. VectorStoreIndex embeds each Node and stores it in a vector store. The index can be persisted to disk and reloaded without re-embedding.</li>
+  <li><strong>Query:</strong> Send a natural language query to a QueryEngine built from the index. The engine retrieves relevant Nodes, passes them with the query to an LLM, and returns a synthesized response with source citations.</li>
+  <li><strong>Evaluate:</strong> Use LlamaIndex's built-in evaluation modules (faithfulness, relevancy, context precision) to measure RAG quality programmatically.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">from</span> llama_index.core <span class="kw">import</span> (
+    VectorStoreIndex, SimpleDirectoryReader, Settings
+)
+<span class="kw">from</span> llama_index.llms.openai <span class="kw">import</span> OpenAI
+<span class="kw">from</span> llama_index.embeddings.openai <span class="kw">import</span> OpenAIEmbedding
+<span class="kw">from</span> llama_index.core.node_parser <span class="kw">import</span> SentenceSplitter
+
+<span class="cm"># 1. Configure global settings</span>
+Settings.llm = <span class="cl">OpenAI</span>(model=<span class="str">"gpt-4o-mini"</span>, temperature=<span class="num">0</span>)
+Settings.embed_model = <span class="cl">OpenAIEmbedding</span>(model=<span class="str">"text-embedding-3-small"</span>)
+Settings.node_parser = <span class="cl">SentenceSplitter</span>(chunk_size=<span class="num">512</span>, chunk_overlap=<span class="num">50</span>)
+
+<span class="cm"># 2. Load documents from a directory</span>
+documents = SimpleDirectoryReader(<span class="str">"./docs"</span>).<span class="fn">load_data</span>()
+<span class="fn">print</span>(<span class="str">f"Loaded &#123;len(documents)&#125; documents"</span>)
+
+<span class="cm"># 3. Build vector index (embeds chunks, stores in memory)</span>
+index = VectorStoreIndex.<span class="fn">from_documents</span>(documents)
+
+<span class="cm"># Persist to disk (no re-embedding on next run)</span>
+index.<span class="fn">storage_context</span>.<span class="fn">persist</span>(persist_dir=<span class="str">"./storage"</span>)
+
+<span class="cm"># 4. Create a query engine and ask questions</span>
+query_engine = index.<span class="fn">as_query_engine</span>(similarity_top_k=<span class="num">5</span>)
+response = query_engine.<span class="fn">query</span>(<span class="str">"What are the main product features?"</span>)
+<span class="fn">print</span>(<span class="str">f"Answer: &#123;response&#125;"</span>)
+<span class="fn">print</span>(<span class="str">f"Sources: &#123;[node.metadata for node in response.source_nodes]&#125;"</span>)
+
+<span class="cm"># ── Sub-question decomposition for complex queries ─────────</span>
+<span class="kw">from</span> llama_index.core.query_engine <span class="kw">import</span> SubQuestionQueryEngine
+<span class="kw">from</span> llama_index.core.tools <span class="kw">import</span> QueryEngineTool
+
+<span class="cm"># Wrap the engine as a tool</span>
+tool = <span class="cl">QueryEngineTool</span>.<span class="fn">from_defaults</span>(
+    query_engine=query_engine,
+    description=<span class="str">"Contains company product documentation"</span>
+)
+
+<span class="cm"># Sub-question engine breaks complex questions into simpler ones</span>
+sub_query_engine = <span class="cl">SubQuestionQueryEngine</span>.<span class="fn">from_defaults</span>(
+    query_engine_tools=[tool]
+)
+
+<span class="cm"># Complex question gets split into sub-questions automatically</span>
+response = sub_query_engine.<span class="fn">query</span>(
+    <span class="str">"Compare the features introduced in Q1 vs Q2, and explain which had more user impact."</span>
+)
+<span class="fn">print</span>(response)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+LLAMAINDEX INGESTION AND QUERY PIPELINE
+
+  DATA SOURCES         INGESTION               STORAGE
+  ─────────────        ─────────────           ─────────
+  PDF files      →     SimpleDirectoryReader    
+  Notion pages   →     NotionReader       →    Node Parser
+  SQL database   →     DatabaseReader          (chunking)
+  GitHub repos   →     GithubReader                │
+  YouTube        →     YoutubeTranscriptReader      ▼
+                                              VectorStoreIndex
+                                              (embeds + stores)
+                                                     │
+  USER QUERY ──────────────────────────────────────  │
+       │                                             │
+       ▼                                             ▼
+  QueryEngine ←────────── retrieves top-K Nodes ────┘
+       │
+       ▼
+  Response Synthesizer
+  (LLM + retrieved nodes → answer + citations)
+       │
+       ▼
+  Response object with:
+  - answer text
+  - source_nodes (with metadata)
+  - confidence scores
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">7</span> Practical Use Cases</h2>
+<p><strong>Multi-format enterprise knowledge base:</strong> Index your company's Confluence wiki, Slack channels, Google Drive PDFs, and internal SQL databases into a unified LlamaIndex. Employees query once and get answers synthesized from all sources, with citations pointing to the original documents.</p>
+<p><strong>Automated RAG evaluation:</strong> Use LlamaIndex's built-in FaithfulnessEvaluator and RelevancyEvaluator to programmatically score your RAG system's outputs. Run these evaluations in CI/CD to catch retrieval quality regressions before they reach production.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Not persisting the index:</strong> Rebuilding a VectorStoreIndex from scratch on every application start re-embeds all documents, costing money and adding startup latency. Always persist the index to disk and load it on subsequent runs.</div>
+<div class="callout warn">⚠️ <strong>Using default chunk sizes for all document types:</strong> Code files need smaller chunks (100-200 tokens) to keep functions intact. Legal documents need larger chunks (800-1000 tokens) to preserve argument context. Tune chunk_size and chunk_overlap per document type.</div>
+<div class="callout danger">❌ <strong>Ignoring source citations:</strong> LlamaIndex returns source nodes with every response. Always surface these to users — it enables them to verify answers and builds trust in the system. A RAG system without citations is a hallucination amplifier.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between LlamaIndex and LangChain? When would you choose each, and when would you use both?</li>
+  <li>Explain the Node concept in LlamaIndex. How does the parent-child relationship between nodes enable hierarchical retrieval?</li>
+  <li>What is sub-question decomposition? Give an example of a query that benefits from it and explain how the query engine handles it.</li>
+  <li>How would you evaluate the quality of a LlamaIndex RAG pipeline? What metrics and automated evaluators would you use?</li>
+  <li>A user's query retrieves irrelevant chunks. Walk through the retrieval pipeline and list all the places where quality could be improved.</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-llamaindex">
+  <li onclick="toggleTask(this)">Build a Q&A system over a PDF using LlamaIndex. Persist the index to disk. Verify on second run that documents are NOT re-embedded by adding a print statement in the embedding call.</li>
+  <li onclick="toggleTask(this)">Compare retrieval quality between chunk_size=128 and chunk_size=1024 on the same document and the same 5 questions. Log which chunks are returned for each and evaluate precision.</li>
+  <li onclick="toggleTask(this)">Use LlamaIndex's SubQuestionQueryEngine on a complex multi-part question. Print the generated sub-questions to understand how the engine decomposes the query.</li>
+  <li onclick="toggleTask(this)">Build a multi-document index over 5 different PDFs. Add source document name as metadata to each Node. Write a query that requires synthesizing information from at least 3 documents and verify the citations are correct.</li>
+  <li onclick="toggleTask(this)">Use LlamaIndex's built-in FaithfulnessEvaluator to score 10 RAG responses. Identify which responses have the lowest faithfulness scores and analyze why the retrieved context was insufficient.</li>
+</ul>

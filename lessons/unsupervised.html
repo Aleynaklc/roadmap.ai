@@ -1,0 +1,140 @@
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">1</span> Simple Explanation</h2>
+<p>While supervised learning operates under the strict guidance of a human-provided answer key, <strong>Unsupervised Learning</strong> throws the algorithm into the deep end without labels. It is the ML equivalent of giving a linguist a book written in an alien language and asking them to decipher its grammar and vocabulary without a dictionary. You provide raw, unlabeled data, and the algorithm's job is to discover hidden structure, patterns, and groupings on its own.</p>
+<p>Unsupervised algorithms group, compress, or map data points based on their inherent similarities and distances. If you dropped a million mixed items of clothing into a warehouse, an unsupervised model would naturally segregate them — not knowing the words "T-shirt" or "Jeans", but clustering items with similar shapes and dimensions together based purely on structural features.</p>
+<p>This branch broadly divides into three categories: <strong>Clustering</strong> (grouping similar points together), <strong>Dimensionality Reduction</strong> (compressing data while retaining core structure), and <strong>Association Rule Learning</strong> (discovering co-occurrence rules like "if bread, then butter").</p>
+<div class="callout">💡 <strong>Key insight:</strong> Since 99% of the world's data — raw server logs, video feeds, unstructured text — is unlabeled, unsupervised learning extracts enormous value from data without the bottleneck of expensive human annotation. It scales where supervised learning cannot.</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">2</span> Why It Matters for AI Engineers</h2>
+<p>Unsupervised learning is rarely the final user-facing product, but it is a prerequisite for advanced systems. Large Language Models like GPT-4 acquire their foundational language understanding through unsupervised pre-training — ingesting terabytes of raw internet text without human annotators telling them what it means.</p>
+<p>As an AI engineer you will constantly face the Curse of Dimensionality. Embeddings often have 1,536 or more dimensions. Techniques like PCA or t-SNE compress these vectors into manageable sizes while preserving semantic meaning. Clustering algorithms auto-categorize incoming data, creating automated labeling pipelines that bootstrap supervised learning systems.</p>
+<div class="tag-row"><span class="tag">Clustering</span><span class="tag">K-Means</span><span class="tag">DBSCAN</span><span class="tag">PCA</span><span class="tag">t-SNE</span><span class="tag">Anomaly Detection</span></div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">3</span> Real-World Example</h2>
+<p><strong>Scenario: Anomaly Detection in Distributed Systems</strong></p>
+<p>Imagine architecting an ML pipeline for a distributed computing environment generating billions of telemetry events per minute: CPU utilization, memory pressure, disk I/O latency, network packet drops. You want to alert engineers before a catastrophic crash — but you cannot use supervised learning because there is no labeled dataset of every possible failure mode.</p>
+<p>You deploy an <strong>Isolation Forest</strong> or <strong>DBSCAN</strong> model. It naturally forms dense clusters representing "healthy, normal operation." When a memory leak occurs in a microservice, the server's telemetry drifts into a region of the high-dimensional space where data points have never appeared before. The unsupervised model flags it as a mathematical outlier — a zero-day failure — allowing the load balancer to kill and restart the container before the entire system cascades into failure.</p>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">4</span> Step-by-Step Explanation</h2>
+<h3>K-Means Clustering (Lloyd's Algorithm)</h3>
+<p>K-Means partitions N data points into K clusters, minimizing the Within-Cluster Sum of Squares (WCSS).</p>
+<ol>
+  <li><strong>Initialization:</strong> Randomly place K centroids in feature space (or use k-means++ for smarter placement).</li>
+  <li><strong>Assignment Step:</strong> Assign every data point to the nearest centroid using Euclidean distance.</li>
+  <li><strong>Update Step:</strong> Recompute each centroid as the mean of all points currently assigned to it.</li>
+  <li><strong>Convergence:</strong> Repeat assignment and update until centroids stop moving (or a max-iteration limit is reached).</li>
+</ol>
+<h3>PCA — Dimensionality Reduction</h3>
+<ol>
+  <li><strong>Standardize:</strong> Center the data (subtract mean, divide by std).</li>
+  <li><strong>Covariance Matrix:</strong> Compute how features vary together.</li>
+  <li><strong>Eigen Decomposition:</strong> Find eigenvectors (new axes of maximum variance) and eigenvalues (variance magnitude along each).</li>
+  <li><strong>Project:</strong> Keep only the top N eigenvectors, reducing dimensionality while preserving the most information.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">5</span> Python Code Example</h2>
+<p>A full pipeline: generate high-dimensional data, scale it, reduce with PCA, find the optimal K with the Elbow Method, cluster, and evaluate with the Silhouette Score.</p>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> sklearn.datasets <span class="kw">import</span> make_blobs
+<span class="kw">from</span> sklearn.cluster <span class="kw">import</span> KMeans
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler
+<span class="kw">from</span> sklearn.metrics <span class="kw">import</span> silhouette_score
+<span class="kw">from</span> sklearn.decomposition <span class="kw">import</span> PCA
+
+<span class="cm"># 1. Generate 10-dimensional synthetic data (4 hidden clusters)</span>
+X, _ = <span class="fn">make_blobs</span>(n_samples=<span class="num">1000</span>, n_features=<span class="num">10</span>, centers=<span class="num">4</span>, cluster_std=<span class="num">1.5</span>, random_state=<span class="num">42</span>)
+
+<span class="cm"># 2. Scale — critical for distance-based algorithms</span>
+scaler = <span class="cl">StandardScaler</span>()
+X_scaled = scaler.<span class="fn">fit_transform</span>(X)
+
+<span class="cm"># 3. PCA: compress 10 dims → 2 for visualization and speed</span>
+pca = <span class="cl">PCA</span>(n_components=<span class="num">2</span>)
+X_pca = pca.<span class="fn">fit_transform</span>(X_scaled)
+<span class="fn">print</span>(<span class="str">f"Variance retained: &#123;sum(pca.explained_variance_ratio_)*100:.1f&#125;%"</span>)
+
+<span class="cm"># 4. Elbow Method — find the optimal K</span>
+wcss = []
+<span class="kw">for</span> k <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, <span class="num">11</span>):
+    km = <span class="cl">KMeans</span>(n_clusters=k, init=<span class="str">'k-means++'</span>, random_state=<span class="num">42</span>, n_init=<span class="num">10</span>)
+    km.<span class="fn">fit</span>(X_pca)
+    wcss.<span class="fn">append</span>(km.inertia_)
+<span class="cm"># Plot wcss vs range(1,11) and look for the "elbow"</span>
+
+<span class="cm"># 5. Train final model at K=4</span>
+model = <span class="cl">KMeans</span>(n_clusters=<span class="num">4</span>, init=<span class="str">'k-means++'</span>, random_state=<span class="num">42</span>, n_init=<span class="num">10</span>)
+labels = model.<span class="fn">fit_predict</span>(X_pca)
+
+<span class="cm"># 6. Evaluate without labels using Silhouette Score (-1 to 1, higher = better)</span>
+score = <span class="fn">silhouette_score</span>(X_pca, labels)
+<span class="fn">print</span>(<span class="str">f"Silhouette Score (K=4): &#123;score:.3f&#125;"</span>)
+
+<span class="cm"># 7. Predict the cluster for a new data point</span>
+new_point = np.random.<span class="fn">rand</span>(<span class="num">1</span>, <span class="num">10</span>)
+new_scaled = scaler.<span class="fn">transform</span>(new_point)   <span class="cm"># use the original scaler</span>
+new_pca    = pca.<span class="fn">transform</span>(new_scaled)      <span class="cm"># use the original PCA</span>
+<span class="fn">print</span>(<span class="str">f"New point assigned to cluster: &#123;model.predict(new_pca)[0]&#125;"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+DBSCAN vs K-MEANS — When Shape Matters
+
+K-MEANS (assumes spherical clusters — fails on complex shapes):
+  Data: two interlocking crescents
+
+  * * * | * * *        K-Means cuts straight down the middle
+  * *   |   * *        regardless of the actual structure.
+  * * * | * * *        Result: both crescents split incorrectly.
+
+DBSCAN (connects densely-packed points — handles any shape):
+  * * * * * *
+  * * (Cluster 1: full crescent A)
+  * * * * * *
+       * * x          x = noise / anomaly — not in any cluster
+       (Cluster 2: full crescent B)
+
+DBSCAN parameters:
+  eps          = radius of the neighbourhood around each point
+  min_samples  = minimum points inside eps to be a "core point"
+  If a point has fewer than min_samples in its eps-neighbourhood
+  and is not reachable from any core point → it is NOISE (anomaly!)
+
+PCA DIMENSIONALITY REDUCTION:
+  1536-dim embedding ──► PCA ──► 2-dim projection for visualization
+  Axis 1 (PC1): direction of maximum variance in the data
+  Axis 2 (PC2): direction of second-most variance, orthogonal to PC1
+  Together they explain e.g. 87% of total variance in 2 numbers.
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">7</span> Practical Use Cases</h2>
+<p><strong>Customer segmentation:</strong> Marketing teams feed user interactions into clustering algorithms to discover distinct personas ("Bargain Hunters", "Impulse Buyers") enabling hyper-targeted campaigns without any manual labeling.</p>
+<p><strong>Genomic sequencing:</strong> Single-cell RNA sequencing uses clustering to group cells with similar gene expression profiles, helping scientists discover entirely new, previously unclassified cancer cell subtypes.</p>
+<p><strong>Topic modeling:</strong> Algorithms like LDA scan millions of legal documents and automatically group them into topics based on word co-occurrence — without human readers reviewing a single document.</p>
+<p><strong>Fraud ring detection:</strong> Graph clustering algorithms analyze networks of money transfers. Accounts that rapidly exchange funds in dense closed loops are isolated as potential money-laundering rings.</p>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Skipping dimensionality reduction on high-dimensional data:</strong> In spaces with thousands of features, Euclidean distance becomes meaningless — all points look equally far from each other. Run PCA before K-Means when working with high-dimensional embeddings.</div>
+<div class="callout warn">⚠️ <strong>Not standardizing features:</strong> Distance-based algorithms are dominated by whichever feature has the largest numerical range. A "Salary" column (0–150,000) will completely override an "Age" column (0–80). Always standardize to mean=0, std=1 first.</div>
+<div class="callout danger">❌ <strong>Using K-Means on non-spherical data:</strong> K-Means assumes clusters are convex and isotropic. For crescents, rings, or interlocking U-shapes, use DBSCAN or Gaussian Mixture Models instead.</div>
+<div class="callout warn">⚠️ <strong>Choosing K arbitrarily:</strong> Always use the Elbow Method and Silhouette Score together to select K mathematically. Picking K=3 because "it seems right" without validation is a common failure in production clustering systems.</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the Elbow Method and Silhouette Score. Which is more mathematically robust and why?</li>
+  <li>What is the difference between PCA and t-SNE? When would you use each, and why can't you use t-SNE for production inference?</li>
+  <li>What are the two primary hyperparameters in DBSCAN, and how do they determine whether a point is a core point, border point, or noise?</li>
+  <li>How does k-means++ initialization differ from random initialization, and how does it reduce the risk of poor convergence?</li>
+  <li>Explain eigenvalues and eigenvectors in the context of PCA. How do you decide how many principal components to keep?</li>
+  <li>Describe a scenario where minimizing WCSS to zero is a terrible outcome. What does WCSS=0 imply?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-unsupervised">
+  <li onclick="toggleTask(this)">Write K-Means from scratch using NumPy (no sklearn). Initialize centroids randomly, implement assignment and update steps, and run until convergence. Compare results to sklearn's KMeans.</li>
+  <li onclick="toggleTask(this)">Use <code>make_moons(noise=0.05)</code> to generate interlocking crescents. Apply K-Means and DBSCAN separately and plot the results side by side to see where K-Means fails.</li>
+  <li onclick="toggleTask(this)">Load a grayscale image as a NumPy array. Apply PCA and reconstruct the image using only the top 10, 50, and 100 principal components — observe the compression/clarity tradeoff.</li>
+  <li onclick="toggleTask(this)">Use IsolationForest on a dataset injected with 5 extreme outliers. Tune the contamination hyperparameter and observe how it changes which points are flagged as anomalies.</li>
+  <li onclick="toggleTask(this)">Implement the Silhouette Score formula manually in Python for a 10-point dataset: calculate cohesion (a) and separation (b) for each point, then compute the mean score without using sklearn.</li>
+</ul>

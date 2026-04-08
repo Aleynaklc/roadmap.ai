@@ -1,0 +1,182 @@
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">1</span> Simple Explanation</h2>
+<p><strong>Video Understanding</strong> is the field of AI that extracts meaning, information, and insight from video content — the most information-dense medium humans consume. Video is a sequence of images (frames) combined with audio. But understanding video goes far beyond processing individual frames: it means grasping <em>temporal relationships</em> — actions that unfold over time, cause-and-effect between events, object motion, and narrative structure. Saying "there is a person" is image understanding. Saying "the person picks up a ball, throws it, and misses the basket" is video understanding.</p>
+<p>For AI engineers, the practical reality is that video understanding is usually implemented as a pragmatic pipeline: extract frames at regular intervals → analyze each frame with a vision model → transcribe audio with STT → combine frame descriptions + transcript → feed to an LLM for reasoning. This approach handles the majority of real-world video tasks at production scale without requiring exotic specialized architectures.</p>
+<p>Modern VLMs like Gemini 1.5 Pro can now accept entire videos directly in their context window by sampling frames and transcribing audio — enabling natural language Q&amp;A about video content. But the engineering challenge remains the same: how do you process enough of a video to understand it without spending 10× more on API calls than the task is worth?</p>
+<div class="callout">💡 <strong>Key insight:</strong> A 1-hour video at 30fps has 108,000 frames. Describing every frame at $0.01 each = $1,080 per video. But sampling 1 frame every 10 seconds gives you 360 frames = $3.60 — and for most tasks captures 95% of the content. The engineering skill in video AI is choosing the minimum viable sampling strategy that captures the signal you need.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">2</span> Why It Matters for AI Engineers</h2>
+<p>Video is 80% of global internet traffic and the volume is growing. Every surveillance camera, medical endoscope, autonomous vehicle dashcam, and live stream generates video that organizations want to analyze automatically. Building AI systems that index, summarize, search, and extract structured data from video unlocks enormous value. As multimodal LLMs mature, video understanding pipelines are becoming standard components of enterprise AI stacks — from media companies to manufacturing to healthcare.</p>
+<div class="tag-row"><span class="tag">Frame Sampling</span><span class="tag">OpenCV</span><span class="tag">Scene Detection</span><span class="tag">Gemini Video</span><span class="tag">Temporal Reasoning</span><span class="tag">Video RAG</span></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">3</span> Real-World Example</h2>
+<p><strong>YouTube's Automated Content Intelligence</strong></p>
+<p>YouTube processes over 500 hours of video uploaded every minute using multiple AI systems working in parallel. Their Content ID uses video fingerprinting (perceptual hashing of sampled frames) to detect copyrighted content in milliseconds. Their auto-captioning pipeline runs Whisper-class ASR on all audio tracks. Their chapter generation system analyzes transcript + visual scene changes to automatically segment videos into labeled, searchable chapters. Their recommendation engine uses video embeddings — created by processing sampled frames through vision models — to understand topic and style for personalized feeds.</p>
+<p>The key engineering insight: YouTube never processes every frame in detail. They use adaptive sampling — more frames during high-motion segments, fewer during static scenes — combined with parallelized GPU clusters processing different time segments concurrently. Apply this same thinking to every video AI system you build: be strategic about what you extract and when.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">4</span> Step-by-Step: Building a Video Understanding Pipeline</h2>
+<ol>
+  <li><strong>Video Ingestion:</strong> Accept any format (mp4, mov, avi, mkv). Extract metadata: duration, resolution, fps, codec. Decide processing strategy based on video length, task, and budget.</li>
+  <li><strong>Frame Extraction:</strong> Sample frames at a task-appropriate rate using OpenCV or ffmpeg. 1fps for general understanding, 5fps for action detection, scene-change only for content summarization. Never process every frame.</li>
+  <li><strong>Audio Extraction:</strong> Separate audio with ffmpeg. Transcribe with Whisper. Align transcript timestamps with frame timestamps for temporal fusion.</li>
+  <li><strong>Frame Analysis:</strong> Pass sampled frames to a VLM. Use a concise prompt like "Describe the main subject, actions, and key visual elements in one sentence." Use a fast, cheap model (Haiku, mini) for this step — save the expensive model for the final reasoning step.</li>
+  <li><strong>Temporal Fusion:</strong> Combine frame descriptions + transcript into a unified timestamped timeline. Group by scene or fixed time windows (e.g., every 30 seconds).</li>
+  <li><strong>LLM Reasoning:</strong> Pass the unified timeline to a powerful LLM with a task-specific prompt: summarize, extract action items, find specific moments, answer a user question, detect anomalies.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># pip install opencv-python faster-whisper anthropic</span>
+<span class="kw">import</span> cv2, base64, subprocess
+<span class="kw">from</span> faster_whisper <span class="kw">import</span> WhisperModel
+<span class="kw">import</span> anthropic
+
+client = anthropic.<span class="cl">Anthropic</span>()
+whisper = <span class="cl">WhisperModel</span>(<span class="str">"base"</span>, device=<span class="str">"cpu"</span>, compute_type=<span class="str">"int8"</span>)
+
+<span class="kw">def</span> <span class="fn">extract_frames</span>(video_path: str, fps: float = <span class="num">1.0</span>) -> list:
+    <span class="str">"""Sample frames at given rate. Returns [{timestamp, b64_jpeg}]."""</span>
+    cap = cv2.<span class="fn">VideoCapture</span>(video_path)
+    video_fps = cap.<span class="fn">get</span>(cv2.CAP_PROP_FPS)
+    interval = <span class="fn">max</span>(<span class="num">1</span>, int(video_fps / fps))
+    frames, idx = [], <span class="num">0</span>
+
+    <span class="kw">while</span> <span class="kw">True</span>:
+        ret, frame = cap.<span class="fn">read</span>()
+        <span class="kw">if not</span> ret: <span class="kw">break</span>
+        <span class="kw">if</span> idx % interval == <span class="num">0</span>:
+            ts = idx / video_fps
+            h, w = frame.shape[:<span class="num">2</span>]
+            frame = cv2.<span class="fn">resize</span>(frame, (<span class="num">640</span>, int(h * <span class="num">640</span> / w)))  <span class="cm"># shrink to save tokens</span>
+            _, buf = cv2.<span class="fn">imencode</span>(<span class="str">".jpg"</span>, frame, [cv2.IMWRITE_JPEG_QUALITY, <span class="num">65</span>])
+            frames.<span class="fn">append</span>({<span class="str">"ts"</span>: ts, <span class="str">"b64"</span>: base64.<span class="fn">b64encode</span>(buf).<span class="fn">decode</span>()})
+        idx += <span class="num">1</span>
+    cap.<span class="fn">release</span>()
+    <span class="kw">return</span> frames
+
+<span class="kw">def</span> <span class="fn">extract_transcript</span>(video_path: str) -> str:
+    <span class="str">"""Extract audio and transcribe to text."""</span>
+    wav = video_path.<span class="fn">replace</span>(<span class="str">".mp4"</span>, <span class="str">"_tmp.wav"</span>)
+    subprocess.<span class="fn">run</span>([<span class="str">"ffmpeg"</span>,<span class="str">"-i"</span>,video_path,<span class="str">"-ar"</span>,<span class="str">"16000"</span>,<span class="str">"-ac"</span>,<span class="str">"1"</span>,<span class="str">"-y"</span>,wav],
+                    capture_output=<span class="kw">True</span>)
+    segs, _ = whisper.<span class="fn">transcribe</span>(wav)
+    <span class="kw">return</span> <span class="str">" "</span>.<span class="fn">join</span>(s.text <span class="kw">for</span> s <span class="kw">in</span> segs)
+
+<span class="kw">def</span> <span class="fn">describe_frame</span>(b64: str, ts: float) -> str:
+    <span class="str">"""One-sentence frame description using a fast/cheap model."""</span>
+    r = client.messages.<span class="fn">create</span>(
+        model=<span class="str">"claude-haiku-4-5-20251001"</span>, max_tokens=<span class="num">120</span>,
+        messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: [
+            {<span class="str">"type"</span>: <span class="str">"image"</span>, <span class="str">"source"</span>: {<span class="str">"type"</span>: <span class="str">"base64"</span>,
+             <span class="str">"media_type"</span>: <span class="str">"image/jpeg"</span>, <span class="str">"data"</span>: b64}},
+            {<span class="str">"type"</span>: <span class="str">"text"</span>,
+             <span class="str">"text"</span>: <span class="str">f"[{ts:.1f}s] Describe main subject, actions, key elements in one sentence."</span>}
+        ]}]
+    )
+    <span class="kw">return</span> r.content[<span class="num">0</span>].text
+
+<span class="kw">def</span> <span class="fn">analyze_video</span>(video_path: str, question: str, max_frames: int = <span class="num">20</span>) -> str:
+    <span class="fn">print</span>(<span class="str">"[1/3] Extracting frames..."</span>)
+    frames = <span class="fn">extract_frames</span>(video_path, fps=<span class="num">0.5</span>)[:max_frames]
+
+    <span class="fn">print</span>(<span class="str">"[2/3] Transcribing audio..."</span>)
+    transcript = <span class="fn">extract_transcript</span>(video_path)
+
+    <span class="fn">print</span>(<span class="str">f"[3/3] Describing {len(frames)} frames &amp; reasoning..."</span>)
+    timeline = <span class="str">"
+"</span>.<span class="fn">join</span>(
+        <span class="str">f"[{f['ts']:.1f}s] {describe_frame(f['b64'], f['ts'])}"</span> <span class="kw">for</span> f <span class="kw">in</span> frames
+    )
+
+    context = <span class="str">f"VISUAL TIMELINE:
+{timeline}
+
+AUDIO TRANSCRIPT:
+{transcript}"</span>
+
+    r = client.messages.<span class="fn">create</span>(
+        model=<span class="str">"claude-opus-4-6"</span>, max_tokens=<span class="num">1024</span>,
+        messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>,
+            <span class="str">"content"</span>: <span class="str">f"{context}
+
+Question: {question}"</span>}]
+    )
+    <span class="kw">return</span> r.content[<span class="num">0</span>].text
+
+answer = <span class="fn">analyze_video</span>(
+    <span class="str">"product_demo.mp4"</span>,
+    <span class="str">"What features are demonstrated and what are the key selling points shown?"</span>
+)
+<span class="fn">print</span>(answer)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+VIDEO UNDERSTANDING PIPELINE
+
+  video.mp4  (60 min, 30fps = 108,000 raw frames)
+       │
+       ├─── Frame Extractor (0.5 fps → 1,800 sampled frames)
+       │         │
+       │         ▼  [subsample only key frames, not all 108K!]
+       │    t=0s      t=2s      t=4s      ...    t=3600s
+       │      │         │         │
+       │    VLM       VLM       VLM
+       │    "Person   "Writing  "Erasing
+       │    at board"  formula" board"
+       │         │
+       │         ▼
+       │    Visual Timeline (timestamped 1-line descriptions)
+       │
+       └─── Audio Extractor (ffmpeg → wav → Whisper STT)
+                 │
+                 ▼
+           Full transcript with timestamps
+
+   Visual Timeline + Transcript
+            │
+            ▼
+   Powerful LLM (Claude Opus / GPT-4o)
+            │
+            ▼
+   Answer / Summary / Structured JSON / Timestamps
+
+FRAME SAMPLING STRATEGIES:
+  ┌─────────────────────────────────────────────────────────┐
+  │  Uniform sampling  │  Simple. 1fps covers most content  │
+  │  Scene-change      │  Only new shots. Lower frame count │
+  │  Motion-based      │  More frames during fast action    │
+  │  FFmpeg keyframes  │  Only I-frames from the codec      │
+  └─────────────────────────────────────────────────────────┘
+  Rule: sample smarter, not denser. Cost scales with frames.
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">7</span> Practical Use Cases</h2>
+<p><strong>Video search and indexing:</strong> Process a library of thousands of product demo videos. Extract visual timelines and transcripts. Store as embeddings in a vector database. Enable semantic search: "find all videos where a user logs into the settings page" — returning exact timestamped clips across the entire library in seconds.</p>
+<p><strong>Safety monitoring:</strong> In manufacturing, analyze factory floor cameras to detect safety violations (workers without hard hats, equipment in restricted zones). Sample frames every 5 seconds, pass to a vision model, and alert supervisors in near real-time. Replaces or augments costly human monitoring at scale.</p>
+<p><strong>Automated chapter generation:</strong> Analyze educational course videos by extracting transcript + visual timeline. Use an LLM to identify the 5-10 major topic transitions and generate chapter titles with start timestamps — exactly what YouTube's auto-chapters feature does.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Processing every frame:</strong> At 30fps, a 1-hour video = 108,000 frames. Describing each with a VLM API at $0.01 each = $1,080 per video. Start with 1 frame per 5-10 seconds and only increase density if the task demands it. For most summarization and Q&amp;A tasks, 1fps or less is sufficient.</div>
+<div class="callout danger">❌ <strong>Ignoring the audio track:</strong> For talking-head videos, educational content, and presentations, the transcript carries 90%+ of the information. Always extract and transcribe audio — it's nearly free with Whisper and dramatically improves understanding quality for conversational content.</div>
+<div class="callout warn">⚠️ <strong>Not chunking long videos for the context window:</strong> A 1-hour video generates thousands of frame descriptions and a massive transcript — far exceeding any LLM context window. Process in 10-minute segments, summarize each, then synthesize segment summaries for the final answer.</div>
+<div class="callout warn">⚠️ <strong>Assuming perfect timestamp alignment:</strong> Frame timestamps and transcript timestamps both start at 0s but slight encoding differences can cause 1-2 second misalignment. Verify alignment on a known reference point before relying on combined frame+transcript temporal analysis.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What makes video understanding harder than image understanding? What information does the temporal dimension add beyond single-frame analysis?</li>
+  <li>You need to build a system to answer natural language questions about 10,000 hours of company training videos. Walk through the full architecture, cost model, and quality tradeoffs.</li>
+  <li>What is scene-change detection and why is it a smarter frame sampling strategy than uniform sampling for content understanding tasks?</li>
+  <li>How do you handle a 3-hour video that exceeds the LLM context window in your understanding pipeline?</li>
+  <li>Compare the frame-description pipeline approach vs. sending the full video to Gemini 1.5 Pro natively. What are the tradeoffs in cost, accuracy, and latency?</li>
+  <li>How would you evaluate the quality of a video Q&amp;A system? What test set and metrics would you design?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-video">
+  <li onclick="toggleTask(this)">Download a 5-minute YouTube video. Use OpenCV to extract 1 frame per second. Pass each to Claude Vision with "Describe this frame in one sentence." Print a timestamped visual timeline of the full video content.</li>
+  <li onclick="toggleTask(this)">Build a video chapter generator: extract frames + transcript from a 10-minute video, send to GPT-4o-mini, and have it identify the 5 major topic transitions with chapter titles and timestamps. Compare to any real chapters the video has.</li>
+  <li onclick="toggleTask(this)">Benchmark sampling rates: analyze the same 2-minute video at 0.5fps, 1fps, and 2fps. For 5 specific questions about the video content, measure how sampling rate affects answer quality vs. API cost.</li>
+  <li onclick="toggleTask(this)">Build a mini video search system: process 5 short videos (1-2 minutes each), embed their visual timelines + transcripts in ChromaDB, then query with "find videos about X" and verify the most relevant video is returned first.</li>
+  <li onclick="toggleTask(this)">Implement scene-change detection with OpenCV: compare consecutive frames using histogram correlation, flag transitions where correlation drops below 0.5. Compare keyframe-only vs uniform 1fps sampling on a video with clear scene cuts — measure which gives better content coverage with fewer frames.</li>
+</ul>

@@ -1,0 +1,171 @@
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">1</span> Simple Explanation</h2>
+<p>Linear algebra is the mathematics of vectors and matrices — organized grids of numbers that you can add, multiply, and transform. If you've ever used a spreadsheet with rows and columns of numbers, you've already thought in linear algebra. In AI, <em>everything</em> is represented as numbers arranged in these grids: images, words, audio, and even the parameters of a neural network itself.</p>
+<p>A <strong>vector</strong> is a list of numbers, like <code>[0.2, -0.5, 0.8]</code>. A <strong>matrix</strong> is a 2D grid of numbers. A <strong>tensor</strong> is the generalization to any number of dimensions — a 3D tensor might be a batch of images (batch × height × width). When a neural network processes your input, it is doing nothing more than a long chain of matrix multiplications and additions.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Every forward pass through a neural network is matrix multiplication. Every embedding lookup is a vector. Every attention score is a dot product. Linear algebra is not background knowledge for AI — it <em>is</em> AI at the mathematical level.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">2</span> Why It Matters for AI Engineers</h2>
+<p>When you see a shape mismatch error in PyTorch (<code>RuntimeError: mat1 and mat2 shapes cannot be multiplied</code>), linear algebra tells you exactly what went wrong and how to fix it. When you want to measure how similar two embeddings are, the dot product is your tool. When you need to understand why your model's gradients are exploding, eigenvalues explain it. You don't need to be a mathematician — but you need the core operations cold.</p>
+<div class="tag-row"><span class="tag">Vectors</span><span class="tag">Matrices</span><span class="tag">Dot Product</span><span class="tag">Matrix Multiply</span><span class="tag">Eigenvalues</span><span class="tag">SVD</span></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">3</span> Real-World Example</h2>
+<p>When OpenAI's <code>text-embedding-3-large</code> model converts your sentence into a 3072-dimensional vector, that vector lives in a high-dimensional vector space. Finding similar sentences means computing <strong>cosine similarity</strong> — a normalized dot product — between vectors. The entire semantic search industry (Pinecone, Weaviate, Chroma) is built on one linear algebra operation. Separately, Google's PageRank algorithm — which ranked the entire web — is an eigenvector computation. And PCA, used to compress embeddings before storing them in vector databases, is singular value decomposition (SVD) under the hood.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">4</span> Step-by-Step: Core Operations</h2>
+<h3>Vectors — The Building Block</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># A word embedding is just a vector</span>
+king   = np.<span class="fn">array</span>([<span class="num">0.9</span>, <span class="num">0.1</span>, <span class="num">0.8</span>, <span class="num">0.2</span>])
+queen  = np.<span class="fn">array</span>([<span class="num">0.8</span>, <span class="num">0.9</span>, <span class="num">0.7</span>, <span class="num">0.3</span>])
+man    = np.<span class="fn">array</span>([<span class="num">0.7</span>, <span class="num">0.1</span>, <span class="num">0.6</span>, <span class="num">0.1</span>])
+woman  = np.<span class="fn">array</span>([<span class="num">0.6</span>, <span class="num">0.9</span>, <span class="num">0.5</span>, <span class="num">0.2</span>])
+
+<span class="cm"># Famous vector arithmetic: king - man + woman ≈ queen</span>
+result = king - man + woman
+<span class="fn">print</span>(result)   <span class="cm"># [0.8, 0.9, 0.7, 0.3] ≈ queen ✓</span>
+
+<span class="cm"># Vector magnitude (length)</span>
+magnitude = np.<span class="fn">linalg</span>.<span class="fn">norm</span>(king)
+<span class="fn">print</span>(<span class="str">f"Magnitude: &#123;magnitude:.3f&#125;"</span>)
+
+<span class="cm"># Unit vector (normalize to length 1)</span>
+king_unit = king / magnitude
+<span class="fn">print</span>(<span class="str">f"Unit vector magnitude: &#123;np.linalg.norm(king_unit):.3f&#125;"</span>)  <span class="cm"># 1.0</span></code></pre>
+</div>
+
+<h3>Dot Product & Cosine Similarity</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">cosine_similarity</span>(a: np.ndarray, b: np.ndarray) -> float:
+    <span class="str">"""
+    The standard way to measure embedding similarity.
+    Returns 1.0 = identical direction, 0.0 = orthogonal, -1.0 = opposite.
+    """</span>
+    dot_product = np.<span class="fn">dot</span>(a, b)          <span class="cm"># scalar: how aligned are they?</span>
+    norm_a = np.<span class="fn">linalg</span>.<span class="fn">norm</span>(a)
+    norm_b = np.<span class="fn">linalg</span>.<span class="fn">norm</span>(b)
+    <span class="kw">return</span> dot_product / (norm_a * norm_b)
+
+doc1 = np.<span class="fn">array</span>([<span class="num">1.0</span>, <span class="num">0.5</span>, <span class="num">0.2</span>, <span class="num">0.8</span>])
+doc2 = np.<span class="fn">array</span>([<span class="num">0.9</span>, <span class="num">0.4</span>, <span class="num">0.3</span>, <span class="num">0.7</span>])   <span class="cm"># similar</span>
+doc3 = np.<span class="fn">array</span>([<span class="num">-0.8</span>, <span class="num">0.1</span>, <span class="num">-0.5</span>, <span class="num">0.0</span>])  <span class="cm"># different</span>
+
+<span class="fn">print</span>(<span class="fn">cosine_similarity</span>(doc1, doc2))  <span class="cm"># ~0.99 — very similar</span>
+<span class="fn">print</span>(<span class="fn">cosine_similarity</span>(doc1, doc3))  <span class="cm"># ~-0.6 — quite different</span></code></pre>
+</div>
+
+<h3>Matrix Multiplication — The Core of Neural Networks</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># A single linear layer in a neural network is just: output = input @ W + b</span>
+batch_size, input_dim, output_dim = <span class="num">4</span>, <span class="num">8</span>, <span class="num">3</span>
+
+X = np.random.<span class="fn">randn</span>(batch_size, input_dim)   <span class="cm"># 4 samples, 8 features each</span>
+W = np.random.<span class="fn">randn</span>(input_dim, output_dim)   <span class="cm"># weight matrix</span>
+b = np.random.<span class="fn">randn</span>(output_dim)              <span class="cm"># bias vector</span>
+
+output = X @ W + b   <span class="cm"># matrix multiply then add bias</span>
+<span class="fn">print</span>(output.shape)   <span class="cm"># (4, 3) — 4 samples, 3 outputs each</span>
+
+<span class="cm"># Shape rule: (m×n) @ (n×p) → (m×p)</span>
+<span class="cm"># Inner dimensions MUST match. Outer dimensions become the result.</span>
+<span class="fn">print</span>(<span class="str">f"X: &#123;X.shape&#125;, W: &#123;W.shape&#125; → output: &#123;output.shape&#125;"</span>)
+<span class="cm"># X: (4,8), W: (8,3) → output: (4,3)  ✓ inner dims both = 8</span>
+
+<span class="cm"># Transpose — flip rows and cols (used constantly)</span>
+W_T = W.T
+<span class="fn">print</span>(W_T.shape)   <span class="cm"># (3, 8)</span></code></pre>
+</div>
+
+<h3>Eigenvalues & SVD — Used in PCA and Embeddings</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># PCA via SVD — compress 1536-dim embeddings to 2D for visualization</span>
+np.random.<span class="fn">seed</span>(<span class="num">42</span>)
+embeddings = np.random.<span class="fn">randn</span>(<span class="num">100</span>, <span class="num">1536</span>)   <span class="cm"># 100 documents, OpenAI embedding size</span>
+
+<span class="cm"># Center the data</span>
+centered = embeddings - embeddings.<span class="fn">mean</span>(axis=<span class="num">0</span>)
+
+<span class="cm"># SVD decomposes matrix into U, S, Vt</span>
+U, S, Vt = np.linalg.<span class="fn">svd</span>(centered, full_matrices=<span class="kw">False</span>)
+
+<span class="cm"># Project to 2D using top 2 singular vectors</span>
+embeddings_2d = centered @ Vt[:<span class="num">2</span>].T
+<span class="fn">print</span>(embeddings_2d.shape)   <span class="cm"># (100, 2) — ready to plot!</span>
+
+<span class="cm"># Variance explained by each component</span>
+variance_explained = (S**<span class="num">2</span>) / np.<span class="fn">sum</span>(S**<span class="num">2</span>)
+<span class="fn">print</span>(<span class="str">f"Top 2 components explain: &#123;variance_explained[:2].sum():.1%&#125; of variance"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">5</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+MATRIX MULTIPLICATION — Shape Rules
+
+  Input batch        Weight matrix       Output
+  (4 × 8)        @     (8 × 3)       =  (4 × 3)
+  ─────────            ─────────         ───────
+  [sample 1]           [col 1 ]          [out 1]
+  [sample 2]     ×     [col 2 ]    =     [out 2]
+  [sample 3]           [col 3 ]          [out 3]
+  [sample 4]                             [out 4]
+
+  Rule: (m×n) @ (n×p) → (m×p)
+         inner dims must match ↑↑
+
+COSINE SIMILARITY — What it looks like geometrically
+
+       ↑
+    B  │  A         cos(θ) ≈ 1.0  →  nearly identical direction
+       │ /          cos(θ) = 0.0  →  completely unrelated
+       │/ θ         cos(θ) ≈ -1   →  opposite meaning
+       └──────→
+
+  This is how vector databases rank search results:
+  your query vector vs every stored document vector.
+
+NEURAL NETWORK FORWARD PASS = chained matrix multiplies
+
+  Input (1×784)  →  Layer1: @W1(784×256)  →  (1×256)
+                 →  Layer2: @W2(256×128)  →  (1×128)
+                 →  Layer3: @W3(128×10)   →  (1×10) = logits
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">6</span> Practical Use Cases</h2>
+<p><strong>Semantic search:</strong> Every RAG pipeline converts queries and documents to vectors then ranks by cosine similarity. The entire retrieval step is a batch of dot products between a query vector and a matrix of stored embeddings.</p>
+<p><strong>Dimensionality reduction:</strong> OpenAI's embedding API lets you request 256-dimensional embeddings instead of 1536 by applying PCA (SVD) internally. This cuts storage costs by 6× with minimal accuracy loss.</p>
+<p><strong>Attention mechanism:</strong> The Q·Kᵀ in self-attention is a matrix multiplication producing a (seq_len × seq_len) attention score matrix. Understanding this shape is essential for reasoning about context window costs.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">7</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Mistake 1:</strong> Confusing shape order. PyTorch is row-major: shape <code>(batch, seq, dim)</code>. Transposing the wrong axes causes silent bugs where math still runs but produces nonsense outputs.</div>
+<div class="callout danger">❌ <strong>Mistake 2:</strong> Using Euclidean distance instead of cosine similarity for embedding comparison. Embeddings often have different magnitudes — cosine similarity normalizes for this. Raw L2 distance will give wrong rankings.</div>
+<div class="callout danger">❌ <strong>Mistake 3:</strong> Not centering data before PCA. SVD on uncentered data doesn't give you principal components — it gives you directions from the origin. Always subtract the mean first.</div>
+<div class="callout danger">❌ <strong>Mistake 4:</strong> Forgetting that <code>@</code> and <code>np.dot</code> behave differently on batched inputs (3D+ tensors). Use <code>torch.bmm</code> or <code>torch.einsum</code> for batched matrix ops in PyTorch.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">8</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the shape rule for matrix multiplication? If a weight matrix is (512, 256) and input is (32, 512), what is the output shape?</li>
+  <li>Explain cosine similarity. Why is it preferred over Euclidean distance for comparing embeddings?</li>
+  <li>What does it mean for two vectors to be orthogonal? Give an AI example where orthogonality matters.</li>
+  <li>Why is self-attention O(n²) in sequence length? Trace the matrix shapes through Q·Kᵀ·V to explain.</li>
+  <li>What is SVD and how does it underpin PCA? Why would you use PCA on embeddings?</li>
+  <li>What happens during a neural network forward pass in terms of linear algebra operations?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">9</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-linalg">
+  <li onclick="toggleTask(this)">Implement cosine similarity from scratch with NumPy and verify it matches sklearn's cosine_similarity on 10 random vectors</li>
+  <li onclick="toggleTask(this)">Build a mini 2-layer neural network forward pass using only NumPy matrix operations (no PyTorch) on random data</li>
+  <li onclick="toggleTask(this)">Use SVD to compress a 100×512 embedding matrix down to 100×16 and measure how much variance is retained</li>
+  <li onclick="toggleTask(this)">Reproduce the "king - man + woman = queen" vector arithmetic using real GloVe embeddings (download glove.6B.50d.txt)</li>
+  <li onclick="toggleTask(this)">Trace the shape of every tensor through one Transformer attention block on paper: input (2, 10, 512) → Q, K, V → scores → output</li>
+</ul>

@@ -1,0 +1,146 @@
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">1</span> Simple Explanation</h2>
+<p>An <strong>embedding</strong> is a way to convert something that computers can't do math on — like words, sentences, images, or audio clips — into a list of numbers that a computer can. More specifically, it's a dense vector (a fixed-length array of floating point numbers) that encodes <em>meaning</em>. Things that are semantically similar should produce vectors that are close together in this numerical space.</p>
+<p>Imagine meaning as coordinates on a map. "Dog" and "Puppy" would be placed very close together. "Dog" and "Automobile" would be far apart. "King" minus "Man" plus "Woman" gives you coordinates close to "Queen". This is not magic — it's geometry. Embeddings compress the semantic relationships extracted from massive amounts of training data into a compact, navigable high-dimensional space.</p>
+<p>The embedding for a word is typically a vector of 768 to 3072 numbers. The embedding for a full sentence or document is produced by a model that reads the entire text and outputs a single summary vector. This is how vector databases can search 100 million documents by meaning in milliseconds — it's all geometry in high-dimensional space.</p>
+<div class="callout">💡 <strong>Key insight:</strong> The reason embeddings work is that neural networks, when trained to predict the next word or to perform language tasks, are forced to build an internal "compression" of meaning. The embedding is that compression made accessible. Similar meaning requires similar internal representations to produce similar predictions.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">2</span> Why It Matters for AI Engineers</h2>
+<p>Embeddings are the bridge between the human world (text, images, sound) and the mathematical world of AI. Every modern RAG system, semantic search engine, recommendation engine, anomaly detector, and multimodal AI pipeline is built on embeddings. When you call OpenAI's embedding API or use a HuggingFace sentence transformer, you are converting raw content into the numeric format that makes downstream AI operations possible.</p>
+<p>Understanding embeddings — their dimensionality, similarity metrics, and how they're generated — determines your ability to build retrieval systems that actually work, to debug when they don't, and to choose the right embedding model for a given task.</p>
+<div class="tag-row"><span class="tag">Vectors</span><span class="tag">Cosine Similarity</span><span class="tag">Semantic Search</span><span class="tag">OpenAI Ada</span><span class="tag">Sentence Transformers</span><span class="tag">FAISS</span></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">3</span> Real-World Example</h2>
+<p><strong>Spotify's Music Recommendation Engine</strong></p>
+<p>Spotify uses embeddings at multiple levels. Each song is embedded based on its audio features (tempo, timbre, key) and its collaborative-filtering signal (the listening patterns of 600 million users). Each user is embedded as a weighted average of the songs they listen to. Recommendation is then a nearest-neighbor search: find the 50 song vectors closest to your user vector. The same principle powers Netflix recommendations, Amazon product suggestions, and LinkedIn's "People You May Know" — all are vector similarity searches in embedding space.</p>
+<p>Spotify's research shows that combining text embeddings of lyrics and audio embeddings of the waveform produces far better recommendations than either alone — illustrating how embeddings from different modalities can be combined by projecting them into a shared semantic space.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Input:</strong> Raw data — a word, sentence, paragraph, image, or audio clip.</li>
+  <li><strong>Model Processing:</strong> A neural network (BERT, GPT, CLIP, Whisper) processes the input through layers of attention and feed-forward operations.</li>
+  <li><strong>Pooling:</strong> For sentence embeddings, the output at each token position is pooled (mean-pooled or CLS-token-extracted) into a single vector.</li>
+  <li><strong>Output Vector:</strong> A 768, 1536, or 3072-dimensional float vector representing the input's meaning.</li>
+  <li><strong>Similarity Search:</strong> Compare this vector to stored vectors using cosine similarity or dot product. Higher score = more semantically similar.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+client = <span class="cl">OpenAI</span>()
+
+<span class="kw">def</span> <span class="fn">get_embedding</span>(text: <span class="cl">str</span>) -> list[float]:
+    <span class="str">"""Get a 1536-dim embedding from OpenAI text-embedding-3-small."""</span>
+    response = client.embeddings.<span class="fn">create</span>(
+        model=<span class="str">"text-embedding-3-small"</span>,
+        input=text
+    )
+    <span class="kw">return</span> response.data[<span class="num">0</span>].embedding
+
+<span class="kw">def</span> <span class="fn">cosine_similarity</span>(a: list, b: list) -> float:
+    <span class="str">"""Compute cosine similarity between two vectors."""</span>
+    a, b = np.<span class="fn">array</span>(a), np.<span class="fn">array</span>(b)
+    <span class="kw">return</span> float(np.<span class="fn">dot</span>(a, b) / (np.<span class="fn">linalg</span>.<span class="fn">norm</span>(a) * np.<span class="fn">linalg</span>.<span class="fn">norm</span>(b)))
+
+<span class="cm"># Semantic similarity examples</span>
+pairs = [
+    (<span class="str">"dog"</span>, <span class="str">"puppy"</span>),
+    (<span class="str">"dog"</span>, <span class="str">"automobile"</span>),
+    (<span class="str">"machine learning"</span>, <span class="str">"artificial intelligence"</span>),
+    (<span class="str">"machine learning"</span>, <span class="str">"baking bread"</span>),
+]
+
+<span class="kw">for</span> a, b <span class="kw">in</span> pairs:
+    emb_a = <span class="fn">get_embedding</span>(a)
+    emb_b = <span class="fn">get_embedding</span>(b)
+    score = <span class="fn">cosine_similarity</span>(emb_a, emb_b)
+    <span class="fn">print</span>(<span class="str">f"'&#123;a&#125;' vs '&#123;b&#125;': &#123;score:.3f&#125;"</span>)
+
+<span class="cm"># Expected output:</span>
+<span class="cm"># 'dog' vs 'puppy': 0.891   ← very similar</span>
+<span class="cm"># 'dog' vs 'automobile': 0.411  ← unrelated</span>
+<span class="cm"># 'machine learning' vs 'artificial intelligence': 0.934</span>
+<span class="cm"># 'machine learning' vs 'baking bread': 0.312</span>
+
+<span class="cm"># --- Local embeddings with sentence-transformers ---</span>
+<span class="kw">from</span> sentence_transformers <span class="kw">import</span> SentenceTransformer
+
+model = <span class="cl">SentenceTransformer</span>(<span class="str">'all-MiniLM-L6-v2'</span>)  <span class="cm"># 80MB, runs on CPU</span>
+
+sentences = [
+    <span class="str">"The president signed the new bill into law."</span>,
+    <span class="str">"The legislation was approved by the executive."</span>,
+    <span class="str">"The cat sat on the mat."</span>,
+]
+embeddings = model.<span class="fn">encode</span>(sentences)   <span class="cm"># shape: (3, 384)</span>
+<span class="fn">print</span>(<span class="str">f"Embedding shape: &#123;embeddings.shape&#125;"</span>)
+
+<span class="cm"># Sentence 0 and 1 should be much closer than 0 and 2</span>
+sim_01 = <span class="fn">cosine_similarity</span>(embeddings[<span class="num">0</span>], embeddings[<span class="num">1</span>])
+sim_02 = <span class="fn">cosine_similarity</span>(embeddings[<span class="num">0</span>], embeddings[<span class="num">2</span>])
+<span class="fn">print</span>(<span class="str">f"Paraphrase similarity: &#123;sim_01:.3f&#125;"</span>)   <span class="cm"># ~0.85</span>
+<span class="fn">print</span>(<span class="str">f"Unrelated similarity:  &#123;sim_02:.3f&#125;"</span>)   <span class="cm"># ~0.18</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+EMBEDDING SPACE — 2D PROJECTION OF HIGH-DIM VECTORS
+
+  Semantic space (imagine 1536 dimensions flattened to 2D):
+
+   Science/Tech        Animals           Food
+  ┌─────────────┐    ┌──────────┐    ┌──────────┐
+  │  AI  ML  DL │    │ dog  cat │    │ pizza    │
+  │  GPU  TPU   │    │ wolf     │    │ pasta    │
+  │  Python     │    │ puppy    │    │ bread    │
+  └─────────────┘    └──────────┘    └──────────┘
+
+  • Words in same cluster have cosine similarity > 0.7
+  • Words across clusters have similarity < 0.3
+  • The geometry encodes ALL semantic relationships
+
+VECTOR ARITHMETIC (word2vec / GloVe era):
+  King  - Man  + Woman  ≈  Queen
+  Paris - France + Italy ≈  Rome
+  Fast  - Speed + Size  ≈  Large
+
+HOW EMBEDDING SEARCH WORKS:
+  Query: "python decorators"
+  Query Vector: [0.12, -0.34, 0.88, ...]  (1536 dims)
+        ↓  cosine similarity vs every stored doc vector
+  Doc 1: "Python function wrappers" → similarity: 0.93 ✓
+  Doc 2: "JavaScript async/await"   → similarity: 0.21 ✗
+  Doc 3: "Using @property in Python"→ similarity: 0.88 ✓
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">7</span> Practical Use Cases</h2>
+<p><strong>Semantic document search:</strong> The foundation of every RAG pipeline. Documents are embedded at index time. At query time, the query is embedded and the top-K nearest document embeddings are retrieved. This finds conceptually relevant documents even when they share no keywords with the query.</p>
+<p><strong>Duplicate detection:</strong> Embed all customer support tickets. Tickets with cosine similarity > 0.92 are likely the same issue from different users, allowing automatic de-duplication and ticket merging before routing to agents.</p>
+<p><strong>Zero-shot classification:</strong> Embed each class label ("positive", "negative", "neutral"). Embed the input text. Assign the class whose embedding is closest. No training data needed — the embedding space handles it.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Using Euclidean distance instead of cosine similarity:</strong> Embedding vectors have varying magnitudes. Cosine similarity measures the angle between vectors (direction of meaning) independent of magnitude. Euclidean distance penalizes magnitude differences, giving wrong rankings. Always use cosine similarity or normalize vectors to unit length first.</div>
+<div class="callout danger">❌ <strong>Embedding long documents as a single chunk:</strong> Most embedding models have a 512-8192 token input limit. Text beyond this limit is silently truncated. Always chunk documents into overlapping windows before embedding, then store each chunk separately.</div>
+<div class="callout warn">⚠️ <strong>Mixing embeddings from different models:</strong> An embedding from text-embedding-3-small lives in a completely different geometric space than one from all-MiniLM-L6-v2. You cannot compare or combine them. All embeddings in a vector store must come from the same model.</div>
+<div class="callout danger">❌ <strong>Not re-indexing when you change embedding models:</strong> If you upgrade from text-embedding-ada-002 to text-embedding-3-large, all stored embeddings are now in the wrong space. You must re-embed every document in your knowledge base with the new model.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain what an embedding is in plain English. How does it encode "meaning" as numbers?</li>
+  <li>Why is cosine similarity preferred over Euclidean distance for comparing embeddings?</li>
+  <li>A user reports that semantic search is returning unrelated documents. What could cause this and how would you debug it?</li>
+  <li>What is the difference between word embeddings (word2vec) and sentence embeddings (BERT/SentenceTransformers)? When do you need each?</li>
+  <li>How would you compare two embedding models for a customer support use case? What metrics and test sets would you create?</li>
+  <li>Explain the tradeoff between embedding dimensionality and retrieval performance. When would you use a smaller embedding?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-embeddings">
+  <li onclick="toggleTask(this)">Use sentence-transformers to embed 20 sentences from different topics. Use FAISS or sklearn's cosine_similarity to build a similarity matrix and visualize it as a heatmap — verify that same-topic sentences cluster together.</li>
+  <li onclick="toggleTask(this)">Implement a semantic search function: embed a corpus of 100 Wikipedia paragraphs, store them in a numpy array, then find the top-5 most similar paragraphs for 5 different queries using cosine similarity.</li>
+  <li onclick="toggleTask(this)">Demonstrate embedding model lock-in: embed the same 10 sentences with two different models. Show that cross-model cosine similarities are meaningless (~0.5 random) while same-model similarities are meaningful.</li>
+  <li onclick="toggleTask(this)">Build a zero-shot sentiment classifier: embed three label strings ("positive review", "negative review", "neutral review") and classify 10 product reviews by finding the nearest label embedding.</li>
+  <li onclick="toggleTask(this)">Chunk a 5-page PDF into 200-token overlapping chunks (with 50-token overlap), embed each chunk, and implement a function that retrieves the top-3 most relevant chunks for any query.</li>
+</ul>

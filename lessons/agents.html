@@ -1,0 +1,170 @@
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">1</span> Simple Explanation</h2>
+<p>An AI Agent is an LLM that can take actions in the world — not just generate text, but actually do things: search the web, run code, read files, send emails, call APIs. The LLM acts as the "brain" that decides what to do; tools are its "hands."</p>
+<p>Think of the difference between a person who can only advise you and a person who can actually go do the task. Traditional LLMs advise; agents act.</p>
+<div class="callout">🤖 <strong>Agent = LLM + Tools + Memory + Planning Loop</strong><br>The agent observes the environment, thinks about what to do, takes an action, observes the result, and repeats until the task is done.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">2</span> The ReAct Loop</h2>
+<div class="diagram-block"><pre>
+  ┌─────────────────────────────────────────────────────────┐
+  │                    AGENT LOOP                            │
+  │                                                          │
+  │  User Task: "Research TSLA stock and write a summary"   │
+  │                          │                               │
+  │              ┌───────────▼──────────────┐               │
+  │              │      THINK / REASON       │               │
+  │              │  "I need to: 1) search    │               │
+  │              │   for TSLA, 2) get price  │               │
+  │              │   data, 3) summarize"     │               │
+  │              └───────────┬──────────────┘               │
+  │                          │                               │
+  │              ┌───────────▼──────────────┐               │
+  │              │         ACT               │               │
+  │              │  Tool: web_search("TSLA   │               │
+  │              │  stock news today")        │               │
+  │              └───────────┬──────────────┘               │
+  │                          │                               │
+  │              ┌───────────▼──────────────┐               │
+  │              │       OBSERVE             │               │
+  │              │  Result: "Tesla Q3        │               │
+  │              │  earnings beat by 12%..." │               │
+  │              └───────────┬──────────────┘               │
+  │                          │                               │
+  │                   (Loop again until done)                │
+  │                          │                               │
+  │              ┌───────────▼──────────────┐               │
+  │              │    FINAL ANSWER           │               │
+  │              │  "TSLA is up 8% this      │               │
+  │              │   week due to strong..."  │               │
+  │              └──────────────────────────┘               │
+  └─────────────────────────────────────────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">3</span> Building an Agent from Scratch</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> json
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+client = <span class="cl">OpenAI</span>()
+
+<span class="cm"># ── Define Tools ──────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">web_search</span>(query: <span class="cl">str</span>) -> <span class="cl">str</span>:
+    <span class="cm"># In production, use Serper, Tavily, or Brave Search API</span>
+    <span class="kw">return</span> <span class="str">f"Search results for '&#123;query&#125;': [Mock] Tesla shares up 8% on strong Q3..."</span>
+
+<span class="kw">def</span> <span class="fn">calculator</span>(expression: <span class="cl">str</span>) -> <span class="cl">str</span>:
+    <span class="kw">try</span>:
+        result = <span class="fn">eval</span>(expression)  <span class="cm"># use safer math library in production</span>
+        <span class="kw">return</span> <span class="cl">str</span>(result)
+    <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+        <span class="kw">return</span> <span class="str">f"Error: &#123;e&#125;"</span>
+
+<span class="kw">def</span> <span class="fn">get_current_time</span>() -> <span class="cl">str</span>:
+    <span class="kw">from</span> datetime <span class="kw">import</span> datetime
+    <span class="kw">return</span> datetime.<span class="fn">now</span>().<span class="fn">strftime</span>(<span class="str">"%Y-%m-%d %H:%M"</span>)
+
+<span class="cm"># Tool registry — map name to function</span>
+TOOLS = &#123;
+    <span class="str">"web_search"</span>: web_search,
+    <span class="str">"calculator"</span>: calculator,
+    <span class="str">"get_current_time"</span>: get_current_time,
+&#125;
+
+<span class="cm"># OpenAI tool schema</span>
+TOOL_SCHEMAS = [
+    &#123;
+        <span class="str">"type"</span>: <span class="str">"function"</span>,
+        <span class="str">"function"</span>: &#123;
+            <span class="str">"name"</span>: <span class="str">"web_search"</span>,
+            <span class="str">"description"</span>: <span class="str">"Search the web for current information"</span>,
+            <span class="str">"parameters"</span>: &#123;
+                <span class="str">"type"</span>: <span class="str">"object"</span>,
+                <span class="str">"properties"</span>: &#123;
+                    <span class="str">"query"</span>: &#123;<span class="str">"type"</span>: <span class="str">"string"</span>, <span class="str">"description"</span>: <span class="str">"Search query"</span>&#125;
+                &#125;,
+                <span class="str">"required"</span>: [<span class="str">"query"</span>]
+            &#125;
+        &#125;
+    &#125;,
+    &#123;
+        <span class="str">"type"</span>: <span class="str">"function"</span>,
+        <span class="str">"function"</span>: &#123;
+            <span class="str">"name"</span>: <span class="str">"calculator"</span>,
+            <span class="str">"description"</span>: <span class="str">"Evaluate mathematical expressions"</span>,
+            <span class="str">"parameters"</span>: &#123;
+                <span class="str">"type"</span>: <span class="str">"object"</span>,
+                <span class="str">"properties"</span>: &#123;
+                    <span class="str">"expression"</span>: &#123;<span class="str">"type"</span>: <span class="str">"string"</span>, <span class="str">"description"</span>: <span class="str">"Math expression"</span>&#125;
+                &#125;,
+                <span class="str">"required"</span>: [<span class="str">"expression"</span>]
+            &#125;
+        &#125;
+    &#125;
+]
+
+<span class="cm"># ── Agent Loop ─────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">run_agent</span>(task: <span class="cl">str</span>, max_steps: <span class="cl">int</span> = <span class="num">10</span>) -> <span class="cl">str</span>:
+    <span class="str">"""Run the ReAct agent loop."""</span>
+    messages = [
+        &#123;<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"You are a helpful AI agent. Use tools to complete tasks. Think step by step."</span>&#125;,
+        &#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: task&#125;
+    ]
+
+    <span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(max_steps):
+        <span class="fn">print</span>(<span class="str">f"
+--- Step &#123;step + 1&#125; ---"</span>)
+
+        response = client.chat.completions.<span class="fn">create</span>(
+            model=<span class="str">"gpt-4o"</span>,
+            messages=messages,
+            tools=TOOL_SCHEMAS,
+            tool_choice=<span class="str">"auto"</span>
+        )
+
+        msg = response.choices[<span class="num">0</span>].message
+        messages.<span class="fn">append</span>(msg)
+
+        <span class="cm"># No tool call = agent is done</span>
+        <span class="kw">if</span> <span class="kw">not</span> msg.tool_calls:
+            <span class="fn">print</span>(<span class="str">f"✓ Agent finished: &#123;msg.content&#125;"</span>)
+            <span class="kw">return</span> msg.content
+
+        <span class="cm"># Execute each tool call</span>
+        <span class="kw">for</span> tool_call <span class="kw">in</span> msg.tool_calls:
+            fn_name = tool_call.function.name
+            fn_args = json.<span class="fn">loads</span>(tool_call.function.arguments)
+
+            <span class="fn">print</span>(<span class="str">f"→ Calling: &#123;fn_name&#125;(&#123;fn_args&#125;)"</span>)
+            result = TOOLS[fn_name](**fn_args)
+            <span class="fn">print</span>(<span class="str">f"← Result: &#123;result[:100]&#125;..."</span>)
+
+            messages.<span class="fn">append</span>(&#123;
+                <span class="str">"role"</span>: <span class="str">"tool"</span>,
+                <span class="str">"tool_call_id"</span>: tool_call.id,
+                <span class="str">"content"</span>: result,
+            &#125;)
+
+    <span class="kw">return</span> <span class="str">"Max steps reached"</span>
+
+<span class="cm"># Run it!</span>
+result = <span class="fn">run_agent</span>(<span class="str">"Search for Tesla stock news and calculate: 250 * 1.08"</span>)
+<span class="fn">print</span>(<span class="str">"
+Final Answer:"</span>, result)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">4</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between a chain and an agent in LangChain terminology?</li>
+  <li>How do you prevent an agent from getting stuck in an infinite loop?</li>
+  <li>What is "hallucinated tool calling" and how do you guard against it?</li>
+  <li>Explain the trade-off between agent autonomy and safety in production systems.</li>
+  <li>How would you add persistent memory to an agent so it remembers past conversations?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">5</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-agents">
+  <li onclick="toggleTask(this)">Build an agent with 3 tools: web search, calculator, and a weather API</li>
+  <li onclick="toggleTask(this)">Add memory to your agent using a simple conversation history buffer</li>
+  <li onclick="toggleTask(this)">Implement a ReAct agent that can read and summarize files from a directory</li>
+  <li onclick="toggleTask(this)">Build a research agent that automatically writes a 500-word report on any topic</li>
+</ul>

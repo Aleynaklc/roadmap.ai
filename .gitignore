@@ -1,0 +1,7 @@
+# Sanal ortam klasörleri
+venv/
+.venv/
+
+# Python önbellek dosyaları
+__pycache__/
+*.pyc

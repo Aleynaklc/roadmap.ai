@@ -1,0 +1,171 @@
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">1</span> Simple Explanation</h2>
+<p>Data structures are organized ways to store and access data in memory. Think of them like different types of containers: a list is like a numbered shelf where order matters, a dictionary is like a filing cabinet where you look things up by label, a stack is like a pile of pancakes where you only touch the top, and a queue is like a line at a coffee shop — first in, first out.</p>
+<p>In Python, you already use data structures constantly: <code>list</code>, <code>dict</code>, <code>set</code>, and <code>tuple</code> are all built-in. As an AI engineer, you'll also use more specialized structures like heaps, graphs, and trees — often without realizing it, because libraries like NumPy and PyTorch abstract them away for you.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Choosing the wrong data structure is one of the most common causes of slow AI code. A lookup that takes O(1) with a dict takes O(n) with a list — and when you're processing millions of tokens, that difference is the difference between a second and an hour.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">2</span> Why It Matters for AI Engineers</h2>
+<p>Data structures appear everywhere in AI engineering. Token vocabularies are dictionaries. Embedding lookup tables are arrays. RAG pipelines use priority queues for ranked retrieval. Computational graphs in PyTorch are directed acyclic graphs (DAGs). Caches for key-value attention use specialized data structures. Understanding the underlying structure helps you debug bottlenecks, write faster preprocessing pipelines, and reason about what's happening inside your AI libraries.</p>
+<div class="tag-row"><span class="tag">Hash Maps</span><span class="tag">Graphs</span><span class="tag">Trees</span><span class="tag">Heaps</span><span class="tag">Queues</span><span class="tag">Linked Lists</span></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">3</span> Real-World Example</h2>
+<p>OpenAI's tokenizer uses a <strong>byte-pair encoding (BPE) trie</strong> — a tree data structure — to efficiently look up which token IDs correspond to which character sequences. When GPT-4 processes your prompt, it walks this trie millions of times per second. The choice of a trie over a flat list makes tokenization 50–100x faster. Similarly, when Hugging Face's <code>datasets</code> library streams large datasets, it uses memory-mapped arrays — a flat contiguous structure — instead of Python lists, cutting memory usage by 10–100x.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">4</span> Step-by-Step: The Core Structures</h2>
+<h3>Arrays and Lists — Ordered, Indexed Storage</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Python list — dynamic, any type, slower</span>
+tokens = [<span class="str">"The"</span>, <span class="str">"cat"</span>, <span class="str">"sat"</span>]
+tokens.<span class="fn">append</span>(<span class="str">"down"</span>)        <span class="cm"># O(1) amortized</span>
+tokens.<span class="fn">insert</span>(<span class="num">0</span>, <span class="str">"start"</span>)    <span class="cm"># O(n) — shifts everything!</span>
+
+<span class="cm"># NumPy array — fixed type, contiguous memory, fast</span>
+embedding = np.<span class="fn">array</span>([<span class="num">0.1</span>, <span class="num">-0.3</span>, <span class="num">0.8</span>, <span class="num">0.2</span>], dtype=np.float32)
+<span class="cm"># Slicing is O(1) — just a view, no copy</span>
+first_half = embedding[:<span class="num">2</span>]
+
+<span class="cm"># 2D array — the shape every ML model works with</span>
+batch = np.<span class="fn">random</span>.<span class="fn">randn</span>(<span class="num">32</span>, <span class="num">512</span>)   <span class="cm"># 32 samples, 512-dim embedding</span>
+<span class="fn">print</span>(batch.shape)   <span class="cm"># (32, 512)</span>
+<span class="fn">print</span>(batch[<span class="num">0</span>])      <span class="cm"># first sample — O(1)</span></code></pre>
+</div>
+
+<h3>Hash Maps (Dictionaries) — O(1) Lookups</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Vocabulary lookup — exactly how tokenizers work</span>
+vocab = &#123;
+    <span class="str">"hello"</span>: <span class="num">1234</span>,
+    <span class="str">"world"</span>: <span class="num">5678</span>,
+    <span class="str">"&lt;eos&gt;"</span>: <span class="num">2</span>,
+    <span class="str">"&lt;pad&gt;"</span>: <span class="num">0</span>,
+&#125;
+
+<span class="cm"># O(1) lookup — no matter if vocab has 100 or 100,000 words</span>
+token_id = vocab.<span class="fn">get</span>(<span class="str">"hello"</span>, vocab[<span class="str">"&lt;eos&gt;"</span>])   <span class="cm"># 1234</span>
+
+<span class="cm"># Frequency counter — common in text preprocessing</span>
+from collections <span class="kw">import</span> Counter, defaultdict
+
+text = <span class="str">"the cat sat on the mat the cat"</span>
+word_freq = Counter(text.<span class="fn">split</span>())
+<span class="fn">print</span>(word_freq.<span class="fn">most_common</span>(<span class="num">3</span>))
+<span class="cm"># [('the', 3), ('cat', 2), ('sat', 1)]</span>
+
+<span class="cm"># defaultdict — avoids KeyError when building index</span>
+inverted_index = defaultdict(<span class="cl">list</span>)
+docs = [<span class="str">"ai is great"</span>, <span class="str">"python is great for ai"</span>]
+<span class="kw">for</span> doc_id, doc <span class="kw">in</span> <span class="fn">enumerate</span>(docs):
+    <span class="kw">for</span> word <span class="kw">in</span> doc.<span class="fn">split</span>():
+        inverted_index[word].<span class="fn">append</span>(doc_id)
+<span class="cm"># inverted_index['ai'] → [0, 1]</span></code></pre>
+</div>
+
+<h3>Stacks & Queues — Ordered Processing</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code>from collections <span class="kw">import</span> deque
+<span class="kw">import</span> heapq
+
+<span class="cm"># Stack (LIFO) — used for DFS, parsing, undo systems</span>
+stack = []
+stack.<span class="fn">append</span>(<span class="str">"layer_1"</span>)   <span class="cm"># push  O(1)</span>
+stack.<span class="fn">append</span>(<span class="str">"layer_2"</span>)
+top = stack.<span class="fn">pop</span>()         <span class="cm"># pop   O(1)  → "layer_2"</span>
+
+<span class="cm"># Queue (FIFO) — used for BFS, batch processing pipelines</span>
+queue = deque()
+queue.<span class="fn">append</span>(<span class="str">"request_1"</span>)  <span class="cm"># enqueue  O(1)</span>
+queue.<span class="fn">append</span>(<span class="str">"request_2"</span>)
+first = queue.<span class="fn">popleft</span>()   <span class="cm"># dequeue  O(1) → "request_1"</span>
+
+<span class="cm"># Min-Heap — used for top-k retrieval in vector search</span>
+<span class="cm"># e.g., find the 5 most similar documents to a query</span>
+candidates = [(score, doc_id) <span class="kw">for</span> score, doc_id <span class="kw">in</span>
+              [(<span class="num">0.92</span>, <span class="str">"doc_a"</span>), (<span class="num">0.87</span>, <span class="str">"doc_b"</span>), (<span class="num">0.95</span>, <span class="str">"doc_c"</span>)]]
+heapq.<span class="fn">heapify</span>(candidates)
+top_k = heapq.<span class="fn">nlargest</span>(<span class="num">2</span>, candidates)
+<span class="fn">print</span>(top_k)  <span class="cm"># [(0.95, 'doc_c'), (0.92, 'doc_a')]</span></code></pre>
+</div>
+
+<h3>Graphs — How PyTorch Thinks</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># A computation graph is just a directed graph of operations</span>
+<span class="cm"># PyTorch builds one automatically during forward pass</span>
+<span class="kw">import</span> torch
+
+x = torch.<span class="fn">tensor</span>([<span class="num">2.0</span>], requires_grad=<span class="kw">True</span>)
+y = x ** <span class="num">2</span> + <span class="num">3</span> * x + <span class="num">1</span>   <span class="cm"># builds a graph: y → x²  x → x</span>
+y.<span class="fn">backward</span>()              <span class="cm"># traverses graph backwards</span>
+<span class="fn">print</span>(x.grad)              <span class="cm"># dy/dx = 2x + 3 = 7.0 ✓</span>
+
+<span class="cm"># Simple adjacency list graph — for dependency tracking</span>
+graph = &#123;
+    <span class="str">"embed"</span>: [],
+    <span class="str">"attention"</span>: [<span class="str">"embed"</span>],
+    <span class="str">"ffn"</span>: [<span class="str">"attention"</span>],
+    <span class="str">"output"</span>: [<span class="str">"ffn"</span>],
+&#125;
+<span class="cm"># → embed feeds attention feeds ffn feeds output</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">5</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+DATA STRUCTURE CHEATSHEET — Time Complexity
+
+  Structure    │  Access  │  Search  │  Insert  │  Delete
+  ─────────────┼──────────┼──────────┼──────────┼──────────
+  Array/List   │   O(1)   │   O(n)   │   O(n)   │   O(n)
+  NumPy Array  │   O(1)   │   O(n)   │   O(n)*  │   O(n)*
+  Dict/HashMap │   O(1)   │   O(1)   │   O(1)   │   O(1)
+  Set          │   —      │   O(1)   │   O(1)   │   O(1)
+  Stack        │   O(n)   │   O(n)   │   O(1)   │   O(1)
+  Queue(deque) │   O(n)   │   O(n)   │   O(1)   │   O(1)
+  Heap         │   O(n)   │   O(n)   │  O(logn) │  O(logn)
+  ─────────────┴──────────┴──────────┴──────────┴──────────
+  * NumPy arrays are fixed-size; "insert" means creating new array
+
+HOW AI SYSTEMS USE EACH:
+  ┌──────────────────────────────────────────────────────┐
+  │  Tokenizer vocabulary    → Dict   (word → token_id) │
+  │  Batch of embeddings     → 2D NumPy / Tensor Array  │
+  │  Top-K retrieval (RAG)   → Min-Heap                 │
+  │  BFS over agent states   → Queue                    │
+  │  Call stack / recursion  → Stack                    │
+  │  Computation graph       → DAG (directed graph)     │
+  │  Deduplication           → Set                      │
+  └──────────────────────────────────────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">6</span> Practical Use Cases</h2>
+<p><strong>Token caching with LRU:</strong> Many LLM inference systems cache KV (key-value) attention states. An LRU (Least Recently Used) cache — implemented with a doubly-linked list + hash map — allows O(1) reads and writes while evicting the oldest entries. This is how systems like vLLM implement KV caching to speed up inference dramatically.</p>
+<p><strong>Trie for prefix search:</strong> When building an autocomplete feature for an AI-powered text editor, a trie lets you find all completions for a given prefix in O(k) time where k is the prefix length — not proportional to the size of the vocabulary.</p>
+<p><strong>Heap for beam search:</strong> Beam search (used in text generation to find the best sequence of tokens) uses a priority queue/heap to efficiently track the top-B candidate sequences at each decoding step.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">7</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Mistake 1:</strong> Using a Python list for membership checks (<code>if word in word_list</code>). This is O(n). Convert it to a set first for O(1) lookups — critical when processing millions of tokens.</div>
+<div class="callout danger">❌ <strong>Mistake 2:</strong> Concatenating strings inside a loop (<code>result += chunk</code>). Strings are immutable in Python; each concatenation creates a new string. Use a list and <code>"".join()</code> at the end — this is O(n) instead of O(n²).</div>
+<div class="callout danger">❌ <strong>Mistake 3:</strong> Storing large matrices as Python lists of lists instead of NumPy arrays. A 1000×1000 float list uses ~56MB; a NumPy float32 array uses ~4MB — 14× less memory, and math operations are 100× faster.</div>
+<div class="callout danger">❌ <strong>Mistake 4:</strong> Using a sorted list when you need a heap. If you re-sort after every insertion, you're O(n log n) per operation. A heap gives you O(log n) inserts with O(1) min/max access.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">8</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the time complexity of looking up a word in a Python dict vs a list? Why does it matter for building a tokenizer?</li>
+  <li>Explain how a LRU cache works. How would you implement it in Python? Where is it used in LLM inference?</li>
+  <li>What data structure does PyTorch use to represent the computation graph? Why is a DAG the right choice?</li>
+  <li>You need to find the top 100 most similar documents out of 10 million embeddings. What data structure would you use and why?</li>
+  <li>What is the difference between a deque and a list for queue operations? When does it matter?</li>
+  <li>How does a hash collision work, and how does Python's dict handle it?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">9</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-ds">
+  <li onclick="toggleTask(this)">Build a tokenizer vocabulary from scratch: read a text file, count word frequencies with Counter, assign IDs to the top 10,000 words</li>
+  <li onclick="toggleTask(this)">Implement an LRU cache using Python's OrderedDict. Test it with a simulated embedding lookup</li>
+  <li onclick="toggleTask(this)">Write a function to find the top-K nearest embeddings using a min-heap (heapq) instead of sorting the full list</li>
+  <li onclick="toggleTask(this)">Compare the speed of "word in word_list" vs "word in word_set" on a vocabulary of 50,000 words using timeit</li>
+  <li onclick="toggleTask(this)">Build a simple inverted index (dict mapping words → list of doc IDs) and use it to search a small collection of text snippets</li>
+</ul>

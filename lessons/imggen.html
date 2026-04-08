@@ -1,0 +1,160 @@
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">1</span> Simple Explanation</h2>
+<p><strong>Image Generation</strong> models create photorealistic images, illustrations, and artwork from text descriptions (text-to-image), from other images (image-to-image), or by filling in masked regions (inpainting). This is one of the most visible and commercially impactful areas of modern AI — Midjourney, DALL-E, and Stable Diffusion have fundamentally changed creative industries, advertising, game development, and product design.</p>
+<p>The dominant architecture today is the <strong>Diffusion Model</strong>. The core idea is elegant: instead of directly generating an image from scratch, the model learns a reverse process. During training, the model is shown a clean image, then shown the same image with Gaussian noise added in increasing amounts, and taught to predict and remove the noise at each step. To generate a new image at inference time, the model starts with pure random noise and iteratively denoises it over dozens of steps — gradually sculpting the noise into a coherent image, guided by the text prompt.</p>
+<p>Modern production systems like Stable Diffusion XL and FLUX combine diffusion with two critical enhancements: a <strong>VAE (Variational Autoencoder)</strong> that compresses images into a compact latent space (making diffusion much faster), and a <strong>text encoder</strong> (usually CLIP or T5) that converts the prompt into a rich semantic embedding that guides each denoising step.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Diffusion models don't memorize training images — they learn the statistical structure of the visual world. This is why they can generate novel, never-before-seen images that are coherent and detailed. The text embedding is injected at every denoising step via cross-attention, steering the noise removal process toward the described content.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">2</span> Why It Matters for AI Engineers</h2>
+<p>Image generation is increasingly embedded in production software — not just creative tools but product design, e-commerce (virtual try-on, product visualization), game asset generation, marketing automation, architectural rendering, and medical visualization. As an AI engineer you need to know how to integrate image generation APIs, how to control output quality through prompting and parameters, and when to fine-tune models on domain-specific styles.</p>
+<p>Understanding the underlying architecture — the role of the VAE, the scheduler, the text encoder, and guidance scale — lets you debug generation failures, optimize for latency and cost, build pipelines that condition generation on specific inputs (ControlNet, IP-Adapter), and make informed decisions about which model tier to use for each use case.</p>
+<div class="tag-row"><span class="tag">Diffusion Models</span><span class="tag">Stable Diffusion</span><span class="tag">DALL-E</span><span class="tag">VAE</span><span class="tag">CFG Scale</span><span class="tag">ControlNet</span></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">3</span> Real-World Example</h2>
+<p><strong>Adobe Firefly in Creative Cloud</strong></p>
+<p>Adobe integrated diffusion-based image generation directly into Photoshop and Illustrator via the Firefly model family. When a designer selects a region in Photoshop and types "replace the background with a sunset over the ocean", Firefly performs inpainting: the selected region is masked, encoded into the latent diffusion space, and the model generates new pixels consistent with both the text prompt and the surrounding unmasked image content. The system must preserve lighting, perspective, and color grading from the surrounding image while generating plausible new content — a far more constrained problem than open-ended generation. Adobe trained Firefly exclusively on licensed stock imagery to avoid copyright complications, demonstrating that fine-tuned domain-specific diffusion models can match general models while eliminating IP risk.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">4</span> Step-by-Step Explanation</h2>
+<h3>How Latent Diffusion Works</h3>
+<ol>
+  <li><strong>Encode to Latent Space:</strong> The VAE encoder compresses the 512x512x3 image (786,432 values) into a compact latent representation (64x64x4 = 16,384 values) — 48x smaller. All diffusion happens in this compressed space, making it computationally feasible.</li>
+  <li><strong>Forward Process (Training):</strong> Gaussian noise is added to the latent in T steps (typically T=1000). At each step t, the model is trained to predict the noise that was added, given the noisy latent and the text embedding.</li>
+  <li><strong>Reverse Process (Inference):</strong> Start with pure Gaussian noise in latent space. For each timestep from T down to 0, the denoising U-Net predicts and removes the noise, guided by the text embedding via cross-attention. After all steps, the cleaned latent is decoded back to a full-resolution image by the VAE decoder.</li>
+  <li><strong>Classifier-Free Guidance (CFG):</strong> The model simultaneously denoises with and without the text prompt. It then steps in the direction that makes the output MORE consistent with the prompt and LESS consistent with having no prompt. The guidance scale (typically 7-12) controls how strongly the prompt steers the generation — higher values follow the prompt more strictly but reduce diversity.</li>
+  <li><strong>Schedulers:</strong> The specific algorithm used for the denoising steps is called the scheduler (DDPM, DDIM, Euler, DPM++). Different schedulers offer different speed/quality tradeoffs — DDIM can generate good images in 20-50 steps instead of the 1000 used during training.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># ── Using the DALL-E API (OpenAI) ─────────────────────────────────────────────</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+<span class="kw">import</span> requests
+<span class="kw">from</span> PIL <span class="kw">import</span> Image
+<span class="kw">from</span> io <span class="kw">import</span> BytesIO
+
+client = <span class="cl">OpenAI</span>()
+
+<span class="cm"># Text-to-image generation</span>
+response = client.images.<span class="fn">generate</span>(
+    model=<span class="str">"dall-e-3"</span>,
+    prompt=<span class="str">"A photorealistic aerial view of a futuristic city at night, "
+           "neon lights reflecting on rain-soaked streets, cinematic lighting"</span>,
+    size=<span class="str">"1024x1024"</span>,
+    quality=<span class="str">"hd"</span>,
+    n=<span class="num">1</span>
+)
+image_url = response.data[<span class="num">0</span>].url
+<span class="fn">print</span>(<span class="str">f"Generated image URL: &#123;image_url&#125;"</span>)
+<span class="fn">print</span>(<span class="str">f"Revised prompt: &#123;response.data[0].revised_prompt&#125;"</span>)
+
+<span class="cm"># Download and display</span>
+img = Image.<span class="fn">open</span>(BytesIO(<span class="fn">requests</span>.<span class="fn">get</span>(image_url).content))
+img.<span class="fn">save</span>(<span class="str">"generated.png"</span>)
+
+<span class="cm"># ── Using Stable Diffusion locally (diffusers library) ────────────────────────</span>
+<span class="kw">from</span> diffusers <span class="kw">import</span> StableDiffusionPipeline, DPMSolverMultistepScheduler
+<span class="kw">import</span> torch
+
+<span class="cm"># Load pipeline with optimized scheduler</span>
+pipe = <span class="cl">StableDiffusionPipeline</span>.<span class="fn">from_pretrained</span>(
+    <span class="str">"stabilityai/stable-diffusion-2-1"</span>,
+    torch_dtype=torch.float16
+)
+pipe.scheduler = <span class="cl">DPMSolverMultistepScheduler</span>.<span class="fn">from_config</span>(pipe.scheduler.config)
+pipe = pipe.<span class="fn">to</span>(<span class="str">"cuda"</span>)  <span class="cm"># move to GPU</span>
+
+<span class="cm"># Generate with key parameters</span>
+result = pipe(
+    prompt=<span class="str">"a golden retriever puppy playing in autumn leaves, "
+           "professional photography, shallow depth of field"</span>,
+    negative_prompt=<span class="str">"blurry, low quality, deformed, ugly, watermark"</span>,
+    height=<span class="num">512</span>, width=<span class="num">512</span>,
+    num_inference_steps=<span class="num">25</span>,    <span class="cm"># fewer steps = faster, lower quality</span>
+    guidance_scale=<span class="num">7.5</span>,         <span class="cm"># how strongly to follow the prompt</span>
+    generator=torch.<span class="cl">Generator</span>(<span class="str">"cuda"</span>).<span class="fn">manual_seed</span>(<span class="num">42</span>)  <span class="cm"># reproducible</span>
+)
+result.images[<span class="num">0</span>].<span class="fn">save</span>(<span class="str">"puppy.png"</span>)
+
+<span class="cm"># Image-to-image: transform an existing image</span>
+<span class="kw">from</span> diffusers <span class="kw">import</span> StableDiffusionImg2ImgPipeline
+
+img2img = <span class="cl">StableDiffusionImg2ImgPipeline</span>.<span class="fn">from_pretrained</span>(
+    <span class="str">"stabilityai/stable-diffusion-2-1"</span>, torch_dtype=torch.float16
+).<span class="fn">to</span>(<span class="str">"cuda"</span>)
+
+init_image = Image.<span class="fn">open</span>(<span class="str">"sketch.png"</span>).<span class="fn">convert</span>(<span class="str">"RGB"</span>).<span class="fn">resize</span>((<span class="num">512</span>, <span class="num">512</span>))
+result = img2img(
+    prompt=<span class="str">"a professional architectural rendering, detailed, photorealistic"</span>,
+    image=init_image,
+    strength=<span class="num">0.75</span>   <span class="cm"># 0=preserve input, 1=ignore input completely</span>
+)
+result.images[<span class="num">0</span>].<span class="fn">save</span>(<span class="str">"rendered.png"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+LATENT DIFFUSION MODEL ARCHITECTURE
+
+  TRAINING:
+  Clean Image -> [VAE Encoder] -> Latent z
+  Latent z + Noise at step t -> [U-Net] -> Predicted noise
+  Loss = MSE(predicted noise, actual noise added)
+
+  INFERENCE:
+  Text Prompt -> [CLIP/T5 Encoder] -> Text Embedding
+                                            |
+                                            v (cross-attention at every step)
+  Pure Noise -> [Denoise step T] -> [Denoise step T-1] -> ... -> [Denoise step 0]
+                     |                    |                           |
+                  U-Net               U-Net                       U-Net
+                  predicts            predicts                    predicts
+                  noise               noise                       noise
+                                                                     |
+                                                                     v
+                                                          Cleaned Latent z
+                                                                     |
+                                                          [VAE Decoder]
+                                                                     |
+                                                          Final Image (512x512x3)
+
+GUIDANCE SCALE (CFG) EFFECT:
+  CFG=1:   Barely follows prompt, very creative/random
+  CFG=7:   Good balance of creativity and prompt adherence (default)
+  CFG=15:  Strictly follows prompt, can over-saturate colours
+  CFG=20+: Often produces artifacts, prompt overfit
+
+NEGATIVE PROMPTS remove unwanted elements:
+  "blurry, watermark, low quality, deformed hands, extra fingers"
+  These are subtracted from the guidance direction at each step.
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">7</span> Practical Use Cases</h2>
+<p><strong>Product visualization in e-commerce:</strong> Retailers use image generation to create product shots in multiple colors, environments, and styles from a single base photograph — eliminating expensive photoshoots and enabling infinite SKU variation at near-zero marginal cost.</p>
+<p><strong>Game and film asset generation:</strong> Studios use diffusion models to generate concept art, texture maps, background environments, and character variants, dramatically accelerating pre-production. ControlNet enables precise structural control so generated assets match existing design language.</p>
+<p><strong>Medical visualization:</strong> Researchers use conditional diffusion models to generate synthetic medical imaging data (X-rays, MRI scans) with controlled pathologies for training diagnostic models — overcoming the scarcity and privacy restrictions of real patient data.</p>
+<p><strong>Advertising and marketing:</strong> Agencies generate campaign imagery, product placements, and localized visuals at scale. A single global ad campaign can produce region-specific variations (different models, backgrounds, cultural elements) automatically using prompt conditioning.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Ignoring the negative prompt:</strong> The negative prompt is one of the most powerful quality levers in diffusion generation. Leaving it empty consistently produces lower-quality outputs. Always include terms like "blurry, low quality, deformed, watermark, ugly, artifacts" as a baseline negative prompt for any production use.</div>
+<div class="callout warn">⚠️ <strong>Setting num_inference_steps too low:</strong> Using fewer than 20 steps produces noticeably blurry, incomplete images. The sweet spot for most schedulers is 25-50 steps. Below 15 steps, output quality degrades rapidly regardless of other parameters.</div>
+<div class="callout danger">❌ <strong>Not setting a random seed for reproducibility:</strong> Diffusion generation is stochastic by default. Without fixing the seed, you cannot reproduce a specific output, debug generation failures, or do systematic A/B comparisons between prompt variations. Always set and log the seed in production workflows.</div>
+<div class="callout warn">⚠️ <strong>Using too high a guidance scale:</strong> A CFG scale above 12-15 often produces oversaturated colors, artifacts, and distorted anatomy — especially in human faces. The model starts aggressively following the prompt at the expense of visual coherence. Start at 7-8 and tune from there.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain how latent diffusion models work. What role does the VAE play and why is diffusion done in latent space rather than pixel space?</li>
+  <li>What is Classifier-Free Guidance and how does it allow the generation to be steered by text without a separate classifier model?</li>
+  <li>What is the difference between text-to-image, image-to-image, and inpainting? Describe a production use case for each.</li>
+  <li>What is ControlNet and how does it enable spatial control over the generated image? Give an example where it is necessary.</li>
+  <li>You need to generate product images in a consistent brand style at scale. What fine-tuning approach would you use (DreamBooth, LoRA, textual inversion) and why?</li>
+  <li>What are the key parameters that affect generation quality and diversity (steps, CFG scale, strength, scheduler)? How do you tune them for a production system?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-imggen">
+  <li onclick="toggleTask(this)">Use the DALL-E 3 API to generate 3 variations of the same scene using different style prompts (photorealistic, oil painting, anime). Compare the revised_prompt field to see how the model interpreted each style instruction.</li>
+  <li onclick="toggleTask(this)">Install the diffusers library and run Stable Diffusion locally. Experiment with guidance_scale values of 1, 5, 7.5, 12, and 20 on the same prompt. Save all outputs and compare quality and adherence.</li>
+  <li onclick="toggleTask(this)">Implement a prompt templating system that takes a product name and target audience as inputs and generates 5 varied advertising image prompts following best practices (subject, style, lighting, mood, technical terms).</li>
+  <li onclick="toggleTask(this)">Use the img2img pipeline to transform a rough pencil sketch into a photorealistic rendering. Experiment with strength values of 0.3, 0.5, 0.75, and 0.9 to find the best sketch-to-photo balance.</li>
+  <li onclick="toggleTask(this)">Build a batch image generation script that reads prompts from a CSV, generates images for each, saves with structured filenames (prompt_id + seed), and logs all parameters to a JSON file for reproducibility.</li>
+</ul>

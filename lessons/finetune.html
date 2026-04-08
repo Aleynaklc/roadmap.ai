@@ -1,0 +1,155 @@
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">1</span> Simple Explanation</h2>
+<p><strong>Fine-tuning</strong> is the process of taking a pre-trained model that already knows a great deal about language and the world, and then continuing to train it on a smaller, task-specific dataset to specialize its behavior for your use case. The pre-trained model is like a brilliant generalist who has read the entire internet. Fine-tuning is sending them to medical school to become a specialist — they don't forget their general knowledge, but they now apply it with deep domain expertise.</p>
+<p>Pre-training an LLM from scratch requires billions of dollars and months of compute. Fine-tuning takes a few hours on a single GPU. This is possible because the model has already learned the structure of language — you are just adjusting the weights to make it respond in a more specific style, format, or domain vocabulary.</p>
+<p>There are two major paradigms: <strong>Full fine-tuning</strong> (update all parameters — powerful but expensive) and <strong>Parameter-Efficient Fine-Tuning (PEFT)</strong>, particularly <strong>LoRA (Low-Rank Adaptation)</strong>, which freezes most parameters and trains only a small number of new adapter matrices — achieving 90% of the quality with 1% of the compute and memory cost.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Fine-tuning is NOT the right tool for every problem. If you just want the model to know new information, use RAG — you can update the knowledge base without retraining. Fine-tuning is the right tool when you need to change the model's behavior, style, format, or reasoning pattern — not just its knowledge.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">2</span> Why It Matters for AI Engineers</h2>
+<p>Fine-tuning is what makes generic LLMs into specialized, production-ready models. A general GPT-4 asked to output structured JSON will sometimes refuse, add extra commentary, or format it wrong. A fine-tuned model trained on 10,000 (input, JSON output) pairs learns to reliably produce the exact JSON schema you need, every time. This reliability is critical for AI systems that downstream code depends on.</p>
+<p>As compute costs drop and LoRA makes fine-tuning accessible on consumer GPUs, the ability to fine-tune open-source models (Llama, Mistral, Qwen) into specialized agents is becoming a core AI engineering skill. Companies are building proprietary model variants to protect competitive advantages that can't exist in shared API services.</p>
+<div class="tag-row"><span class="tag">LoRA</span><span class="tag">QLoRA</span><span class="tag">PEFT</span><span class="tag">Instruction Tuning</span><span class="tag">RLHF</span><span class="tag">Unsloth</span></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">3</span> Real-World Example</h2>
+<p><strong>Bloomberg's FinancialGPT</strong></p>
+<p>Bloomberg built BloombergGPT, a 50-billion-parameter LLM trained from scratch and then fine-tuned on 363 billion tokens of financial data — earnings reports, SEC filings, financial news, and market analysis. The result outperforms GPT-4 on financial NLP benchmarks (sentiment analysis of earnings calls, named entity recognition for financial instruments, financial question answering) while matching GPT-4 on general tasks.</p>
+<p>For most companies, training from scratch is overkill. Instead, the pattern is: start with an open-source foundation model (Llama 3 or Mistral), fine-tune with LoRA on domain-specific data using QLoRA (4-bit quantization + LoRA), deploy with vLLM for efficient inference. Total cost for this pipeline: a few hundred dollars of GPU compute, producing a proprietary model fine-tuned to your domain that no competitor can access through an API.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">4</span> Step-by-Step Explanation</h2>
+<h3>LoRA: How It Works</h3>
+<ol>
+  <li><strong>Freeze original weights:</strong> The pre-trained weight matrix W (shape: d×k) is frozen. Its values won't change.</li>
+  <li><strong>Add low-rank matrices:</strong> Insert two small matrices A (d×r) and B (r×k) where r is the LoRA rank (typically 4-64, much smaller than d or k). The combined update is: ΔW = A × B.</li>
+  <li><strong>Train only A and B:</strong> During fine-tuning, only A and B are updated by gradient descent. W remains frozen.</li>
+  <li><strong>Merge at inference:</strong> The final weights become W + ΔW. Zero inference overhead vs the base model.</li>
+  <li><strong>Parameter savings:</strong> If W is 4096×4096 (16.7M params) and rank r=16, then A+B = 4096×16 + 16×4096 = 131K params — 128x fewer trainable parameters.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Fine-tune Llama 3 with QLoRA using Unsloth (fast + memory efficient)</span>
+<span class="cm"># pip install unsloth transformers trl datasets</span>
+<span class="kw">from</span> unsloth <span class="kw">import</span> FastLanguageModel
+<span class="kw">from</span> trl <span class="kw">import</span> SFTTrainer
+<span class="kw">from</span> transformers <span class="kw">import</span> TrainingArguments
+<span class="kw">from</span> datasets <span class="kw">import</span> load_dataset
+
+<span class="cm"># 1. Load base model with 4-bit quantization (runs on 16GB GPU)</span>
+model, tokenizer = FastLanguageModel.<span class="fn">from_pretrained</span>(
+    model_name=<span class="str">"unsloth/llama-3-8b-bnb-4bit"</span>,
+    max_seq_length=<span class="num">2048</span>,
+    dtype=<span class="kw">None</span>,          <span class="cm"># auto-detect</span>
+    load_in_4bit=<span class="kw">True</span>,
+)
+
+<span class="cm"># 2. Add LoRA adapters — only these are trained</span>
+model = FastLanguageModel.<span class="fn">get_peft_model</span>(
+    model,
+    r=<span class="num">16</span>,                         <span class="cm"># LoRA rank</span>
+    target_modules=[<span class="str">"q_proj"</span>, <span class="str">"k_proj"</span>, <span class="str">"v_proj"</span>, <span class="str">"o_proj"</span>,
+                    <span class="str">"gate_proj"</span>, <span class="str">"up_proj"</span>, <span class="str">"down_proj"</span>],
+    lora_alpha=<span class="num">16</span>,
+    lora_dropout=<span class="num">0</span>,
+    bias=<span class="str">"none"</span>,
+    use_gradient_checkpointing=<span class="str">"unsloth"</span>,
+)
+
+<span class="cm"># 3. Prepare dataset in instruction format</span>
+dataset = <span class="fn">load_dataset</span>(<span class="str">"json"</span>, data_files=<span class="str">"training_data.jsonl"</span>)[<span class="str">"train"</span>]
+<span class="cm"># Each example: &#123;"instruction": "...", "input": "...", "output": "..."&#125;</span>
+
+<span class="kw">def</span> <span class="fn">format_prompt</span>(example):
+    <span class="kw">return</span> &#123;<span class="str">"text"</span>: <span class="str">f"""### Instruction:
+&#123;example['instruction']&#125;
+
+### Input:
+&#123;example['input']&#125;
+
+### Response:
+&#123;example['output']&#125;&lt;/s&gt;"""</span>&#125;
+
+dataset = dataset.<span class="fn">map</span>(format_prompt)
+
+<span class="cm"># 4. Configure training</span>
+trainer = <span class="cl">SFTTrainer</span>(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=dataset,
+    dataset_text_field=<span class="str">"text"</span>,
+    max_seq_length=<span class="num">2048</span>,
+    args=<span class="cl">TrainingArguments</span>(
+        per_device_train_batch_size=<span class="num">2</span>,
+        gradient_accumulation_steps=<span class="num">4</span>,
+        warmup_steps=<span class="num">5</span>,
+        num_train_epochs=<span class="num">3</span>,
+        learning_rate=<span class="num">2e-4</span>,
+        fp16=<span class="kw">True</span>,
+        logging_steps=<span class="num">10</span>,
+        output_dir=<span class="str">"./checkpoints"</span>,
+    ),
+)
+trainer.<span class="fn">train</span>()
+
+<span class="cm"># 5. Save LoRA adapters (tiny — a few hundred MB)</span>
+model.<span class="fn">save_pretrained</span>(<span class="str">"./lora_adapters"</span>)
+tokenizer.<span class="fn">save_pretrained</span>(<span class="str">"./lora_adapters"</span>)
+<span class="fn">print</span>(<span class="str">"Fine-tuning complete. Adapters saved."</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+LORA: WHAT GETS TRAINED
+
+  Pre-trained Weight Matrix W (frozen — 4096 x 4096):
+  ┌─────────────────────────────────┐
+  │  Billions of params, all frozen │  ← NOT trained
+  └─────────────────────────────────┘
+           +
+  Low-Rank Adapters (trained):
+  ┌──────┐     ┌──────────────────┐
+  │  A   │  ×  │       B          │  = ΔW  (the update)
+  │4096×16│     │    16×4096       │
+  └──────┘     └──────────────────┘
+   65K params    65K params = 130K total vs 16.7M
+
+  Final weight = W + ΔW  (merged at inference, zero overhead)
+
+WHEN TO USE FINE-TUNING vs RAG:
+  ┌──────────────────────────────────────────────────────┐
+  │  Problem                    Solution                 │
+  ├──────────────────────────────────────────────────────┤
+  │  Model needs new facts      → RAG (update DB)        │
+  │  Model needs new style      → Fine-tune              │
+  │  Model outputs wrong format → Fine-tune              │
+  │  Model needs domain vocab   → Fine-tune              │
+  │  Need to reduce hallucination → Both                 │
+  └──────────────────────────────────────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">7</span> Practical Use Cases</h2>
+<p><strong>JSON output reliability:</strong> Fine-tune a model on 5,000 (instruction, structured JSON output) pairs. The model learns to always output valid JSON matching your schema, eliminating the need for complex output parsers and retry logic in production.</p>
+<p><strong>Medical note summarization:</strong> Fine-tune on de-identified clinical notes paired with physician-written summaries. The model learns domain-specific vocabulary (drug names, diagnostic codes, procedure terminology) and summary structure that general models lack.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Fine-tuning when prompting would suffice:</strong> Before spending hours fine-tuning, try 5-10 carefully crafted few-shot examples in the prompt. Good prompting solves 80% of "the model doesn't do what I want" problems. Fine-tuning is for the remaining 20%.</div>
+<div class="callout danger">❌ <strong>Catastrophic forgetting:</strong> Fine-tuning on a narrow task can degrade the model's general capabilities. Monitor performance on a held-out general benchmark (MMLU) alongside your task-specific benchmark throughout training. If general performance drops, reduce learning rate or epochs.</div>
+<div class="callout warn">⚠️ <strong>Data quality over quantity:</strong> 500 high-quality, diverse, correctly formatted training examples consistently outperform 50,000 noisy, duplicated, or poorly formatted examples. Invest in data cleaning before investing in more data collection.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain LoRA. How does using low-rank matrices reduce the number of trainable parameters? What is the mathematical form of the weight update?</li>
+  <li>When would you choose fine-tuning over RAG for a domain adaptation problem? Give a concrete example for each.</li>
+  <li>What is catastrophic forgetting in the context of LLM fine-tuning? How do you detect it and what mitigation strategies exist?</li>
+  <li>Describe the data format for instruction fine-tuning. What makes a good instruction-following training example?</li>
+  <li>What is QLoRA? How does combining quantization with LoRA enable fine-tuning on consumer hardware?</li>
+  <li>How do you evaluate the quality of a fine-tuned model? What benchmarks and human evaluation processes would you use?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-finetune">
+  <li onclick="toggleTask(this)">Create a 50-example instruction fine-tuning dataset in JSONL format for a specific task (e.g., "convert informal text to formal email"). Ensure diversity across examples, then validate the format with a JSON schema checker.</li>
+  <li onclick="toggleTask(this)">Use the PEFT library to add a LoRA adapter to a small HuggingFace model (GPT-2 or distilgpt2). Count trainable vs. frozen parameters to verify that LoRA dramatically reduces the trainable parameter count.</li>
+  <li onclick="toggleTask(this)">Fine-tune GPT-2 on a custom dataset using the TRL SFTTrainer. Evaluate perplexity before and after fine-tuning to verify the model has adapted to your domain vocabulary.</li>
+  <li onclick="toggleTask(this)">Demonstrate catastrophic forgetting: fine-tune a model heavily on a single task and measure its performance on a different benchmark before and after. Experiment with reducing the learning rate to mitigate the effect.</li>
+  <li onclick="toggleTask(this)">Use OpenAI's fine-tuning API to fine-tune gpt-3.5-turbo on a 50-example customer service dataset. Compare the fine-tuned model's output format consistency vs. the base model on 10 test prompts.</li>
+</ul>

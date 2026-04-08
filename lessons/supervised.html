@@ -1,0 +1,146 @@
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">1</span> Simple Explanation</h2>
+<p><strong>Supervised Learning</strong> is the most widely deployed branch of machine learning. The word "supervised" means the algorithm learns under the direct guidance of a human-provided answer key. For every training example, you supply both the <strong>input</strong> (the features) and the correct <strong>output</strong> (the label). The algorithm's job is to discover the mathematical function that maps inputs to outputs — so precisely that when it sees a brand-new, unseen input, it can predict the correct output on its own.</p>
+<p>Think of it like teaching a child to recognize dogs. You show them 10,000 pictures and say "this is a dog" or "this is not a dog" for each one. After enough examples, the child builds an internal model of what makes a dog a dog — and can correctly classify a breed they have never seen before. Supervised learning is that same process, formalized as optimization over a loss function.</p>
+<p>Supervised learning splits into two families based on what the output looks like. <strong>Classification</strong> predicts a discrete category label (spam / not spam, cat / dog, fraudulent / legitimate). <strong>Regression</strong> predicts a continuous numerical value (house price, tomorrow's temperature, engine failure time).</p>
+<div class="callout">💡 <strong>Key insight:</strong> The quality of your labels is the ceiling of your model's performance. A model trained on noisy or biased labels cannot exceed the quality of those labels — no matter how powerful the architecture. "Garbage in, garbage out" is the iron law of supervised learning.</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">2</span> Why It Matters for AI Engineers</h2>
+<p>Supervised learning is the backbone of nearly every production AI system you will build. Email spam filters, credit card fraud detectors, medical image classifiers, churn prediction engines, sentiment analyzers — all are supervised learning systems. Understanding the full supervised pipeline is the single most important applied ML skill you can develop.</p>
+<p>As an AI engineer, you will spend significant time sourcing and labeling data, choosing the right algorithm, training models, evaluating rigorously, and diagnosing failures in production. You also need to know when supervised learning is the wrong tool — when you have no labels (use unsupervised), when the agent needs to learn from interaction (reinforcement learning), or when labels are too expensive at scale (self-supervised or semi-supervised).</p>
+<div class="tag-row"><span class="tag">Classification</span><span class="tag">Regression</span><span class="tag">Loss Functions</span><span class="tag">Gradient Descent</span><span class="tag">Train/Test Split</span><span class="tag">Cross-Validation</span></div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">3</span> Real-World Example</h2>
+<p><strong>Scenario: Gmail's Spam Filter</strong></p>
+<p>Google's spam filter is one of the most impactful supervised learning systems ever deployed. When users click "Report Spam" or "Not Spam", they are providing labels — the human-supervised answer key. Engineers extract features from each email: sender domain reputation, word frequencies, number of links, HTML-to-text ratio, whether the sender is in the user's contacts, and dozens more.</p>
+<p>A classification model is trained on these labeled examples. It learns that emails with phrases like "FREE WINNER CLICK NOW" combined with unknown sender domains strongly map to the label "spam=1". After training, the model is evaluated using Precision and Recall rather than Accuracy, because hiding a legitimate email (False Positive) costs far more than letting spam through (False Negative). The final threshold is tuned to balance this business risk precisely.</p>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">4</span> Step-by-Step Explanation</h2>
+<p>Every supervised learning system follows the same pipeline, whether the model is a linear regression or a 70-billion-parameter transformer.</p>
+<ol>
+  <li><strong>Collect and Label Data:</strong> Gather raw examples and annotate each with the correct output. Label quality directly determines the model's ceiling.</li>
+  <li><strong>Split the Data:</strong> Divide into <strong>Training Set</strong> (70–80%) to fit the model, <strong>Validation Set</strong> (10–15%) to tune hyperparameters, and a <strong>Test Set</strong> (10–15%) kept completely blind until final evaluation.</li>
+  <li><strong>Choose Model and Loss Function:</strong> For regression: Mean Squared Error. For binary classification: Binary Cross-Entropy. For multi-class: Categorical Cross-Entropy. The loss quantifies how wrong predictions are.</li>
+  <li><strong>Train (Minimize the Loss):</strong> An optimizer (SGD, Adam, AdamW) iteratively adjusts parameters to minimize training loss. Each full pass through training data is one <strong>epoch</strong>.</li>
+  <li><strong>Evaluate on Held-Out Data:</strong> Measure performance on Validation and Test sets using appropriate metrics. The gap between training and validation performance reveals overfitting.</li>
+  <li><strong>Iterate and Deploy:</strong> Tune hyperparameters, add regularization, engineer features, or collect more data based on what evaluation reveals. Deploy when performance meets business requirements.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">5</span> Python Code Example</h2>
+<p>A complete supervised learning pipeline for binary fraud classification, covering data prep, training two models, and evaluation on a blind test set.</p>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">from</span> sklearn.datasets <span class="kw">import</span> make_classification
+<span class="kw">from</span> sklearn.model_selection <span class="kw">import</span> train_test_split
+<span class="kw">from</span> sklearn.preprocessing <span class="kw">import</span> StandardScaler
+<span class="kw">from</span> sklearn.linear_model <span class="kw">import</span> LogisticRegression
+<span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> RandomForestClassifier
+<span class="kw">from</span> sklearn.metrics <span class="kw">import</span> classification_report, roc_auc_score
+
+<span class="cm"># 1. Generate labeled dataset (20 features, 5% fraud rate)</span>
+X, y = <span class="fn">make_classification</span>(
+    n_samples=<span class="num">5000</span>, n_features=<span class="num">20</span>, n_informative=<span class="num">10</span>,
+    n_classes=<span class="num">2</span>, weights=[<span class="num">0.95</span>, <span class="num">0.05</span>], random_state=<span class="num">42</span>
+)
+
+<span class="cm"># 2. Stratified split — preserves class ratio in each subset</span>
+X_tv, X_test, y_tv, y_test = <span class="fn">train_test_split</span>(X, y, test_size=<span class="num">0.15</span>, stratify=y, random_state=<span class="num">42</span>)
+X_train, X_val, y_train, y_val = <span class="fn">train_test_split</span>(X_tv, y_tv, test_size=<span class="num">0.15</span>, stratify=y_tv, random_state=<span class="num">42</span>)
+
+<span class="cm"># 3. Scale — fit ONLY on training data to prevent leakage</span>
+scaler = <span class="cl">StandardScaler</span>()
+X_train_s = scaler.<span class="fn">fit_transform</span>(X_train)
+X_val_s   = scaler.<span class="fn">transform</span>(X_val)
+X_test_s  = scaler.<span class="fn">transform</span>(X_test)
+
+<span class="cm"># 4. Train two models</span>
+lr = <span class="cl">LogisticRegression</span>(max_iter=<span class="num">1000</span>)
+rf = <span class="cl">RandomForestClassifier</span>(n_estimators=<span class="num">100</span>, random_state=<span class="num">42</span>)
+lr.<span class="fn">fit</span>(X_train_s, y_train)
+rf.<span class="fn">fit</span>(X_train_s, y_train)
+
+<span class="cm"># 5. Compare on validation set</span>
+<span class="kw">for</span> name, model <span class="kw">in</span> [(<span class="str">"Logistic Regression"</span>, lr), (<span class="str">"Random Forest"</span>, rf)]:
+    y_prob = model.<span class="fn">predict_proba</span>(X_val_s)[:, <span class="num">1</span>]
+    <span class="fn">print</span>(<span class="str">f"&#123;name&#125;  AUC: &#123;roc_auc_score(y_val, y_prob):.3f&#125;"</span>)
+
+<span class="cm"># 6. Final blind test evaluation — done only ONCE at the very end</span>
+y_pred = rf.<span class="fn">predict</span>(X_test_s)
+y_prob = rf.<span class="fn">predict_proba</span>(X_test_s)[:, <span class="num">1</span>]
+<span class="fn">print</span>(<span class="fn">classification_report</span>(y_test, y_pred, digits=<span class="num">3</span>))
+<span class="fn">print</span>(<span class="str">f"Test AUC: &#123;roc_auc_score(y_test, y_prob):.3f&#125;"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+THE SUPERVISED LEARNING PIPELINE
+
+  LABELED DATA: [ (X1,y1), (X2,y2), ..., (Xn,yn) ]
+                            │
+          ┌─────────────────▼──────────────────────┐
+          │          STRATIFIED SPLIT               │
+          │  70% Train  │  15% Val  │  15% Test    │
+          │             │           │  (blind!)     │
+          └──────┬──────┴─────┬─────┴───────────────┘
+                 │            │
+     ┌───────────▼──────┐     │
+     │  Preprocessing   │     │
+     │  fit_transform() │     │  transform() only
+     │  (train only)    │     │
+     └───────────┬──────┘     │
+                 │            │
+     ┌───────────▼────────────────────────────────┐
+     │  MODEL TRAINING: model.fit(X_train, y)     │
+     │  Minimize loss over N epochs               │
+     │  Forward → Loss → Backward → Update        │
+     └───────────┬────────────────────────────────┘
+                 │
+     ┌───────────▼────────────────────────────────┐
+     │  VALIDATION: tune hyperparameters          │
+     │  Check for overfitting (train vs val gap)  │
+     └───────────┬────────────────────────────────┘
+                 │
+     ┌───────────▼────────────────────────────────┐
+     │  TEST: final evaluation (one time only)    │
+     │  Report Precision / Recall / F1 / AUC      │
+     └────────────────────────────────────────────┘
+
+CLASSIFICATION vs REGRESSION:
+  Classification           Regression
+  ────────────────         ──────────────────────
+  Output: label            Output: number
+  Loss:   Cross-Entropy    Loss:   MSE / MAE
+  Metric: F1, AUC          Metric: RMSE, R²
+  e.g.:   Spam? Fraud?     e.g.:   Price? Temp?
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">7</span> Practical Use Cases</h2>
+<p><strong>Medical imaging:</strong> Radiologists label thousands of MRI scans as "tumour present" or "tumour absent". A CNN trained on these labels detects tumours on new scans at radiologist-level speed, enabling faster diagnosis pipelines.</p>
+<p><strong>House price prediction (regression):</strong> Platforms like Zillow train gradient-boosting models on millions of historical sales (the labels) paired with property features, outputting continuous dollar estimates for any new property.</p>
+<p><strong>LLM pre-training (self-supervised):</strong> GPT models are trained with a supervised objective — predict the next token — but labels are generated automatically from the text itself. This is why massive unlabeled corpora can be used: the data labels itself.</p>
+<p><strong>Credit scoring:</strong> Banks train logistic regression and gradient-boosting models on historical loan records labeled "repaid" or "defaulted", then score new applicants. The threshold is set based on the business's acceptable risk tolerance.</p>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Fitting the scaler on the full dataset before splitting:</strong> This leaks test-set statistics into training and makes your model appear more accurate than it really is. Always split first, then call <code>fit_transform()</code> only on training data.</div>
+<div class="callout danger">❌ <strong>Using accuracy on imbalanced datasets:</strong> A model predicting "not fraud" always achieves 95% accuracy when 95% of transactions are legitimate — and catches zero fraud cases. Always report F1, PR-AUC, and ROC-AUC for imbalanced tasks.</div>
+<div class="callout warn">⚠️ <strong>Peeking at the test set:</strong> Every time you use test-set performance to make a modeling decision, you are indirectly overfitting to it. Treat the test set as a one-shot oracle — viewed only once at the very end to report the final number.</div>
+<div class="callout danger">❌ <strong>Choosing the wrong loss for the task:</strong> Using MSE for classification or Cross-Entropy for regression will cause training to fail silently. The model converges, but to a meaningless solution. Always match the loss function to the output type.</div>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between supervised and self-supervised learning? How does GPT pre-training fit into this taxonomy?</li>
+  <li>Explain the bias-variance tradeoff. How does it manifest as training error vs. validation error?</li>
+  <li>You have 1,000 labeled examples and 100,000 unlabeled ones. What strategies let you leverage the unlabeled data in a supervised setting?</li>
+  <li>Why must StandardScaler be fit only on training data? What goes wrong if you fit it on the full dataset?</li>
+  <li>When would you choose Mean Absolute Error over Mean Squared Error for regression, and why?</li>
+  <li>What is stratified splitting and why is it critical for imbalanced classification problems?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(124,58,237,.15);color:#7c3aed">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-supervised">
+  <li onclick="toggleTask(this)">Train Logistic Regression and Random Forest on the Breast Cancer dataset. Compare ROC-AUC scores on a stratified test split and explain which performed better and why.</li>
+  <li onclick="toggleTask(this)">Intentionally fit a StandardScaler on the full dataset before splitting, then do it correctly. Compare reported test accuracy in both cases to see the data leakage effect.</li>
+  <li onclick="toggleTask(this)">Build a regression model to predict California housing prices. Plot predicted vs. actual values and compute RMSE and R².</li>
+  <li onclick="toggleTask(this)">Implement 5-fold stratified cross-validation using StratifiedKFold on an imbalanced dataset. Print F1 score per fold and mean ± standard deviation.</li>
+  <li onclick="toggleTask(this)">Write a threshold-tuning function that accepts a model, X_test, y_test, and iterates thresholds from 0.1 to 0.9, printing Precision, Recall, and F1 at each step to find the optimal threshold.</li>
+</ul>

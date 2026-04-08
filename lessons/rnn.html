@@ -1,0 +1,146 @@
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">1</span> Simple Explanation</h2>
+<p><strong>Recurrent Neural Networks (RNNs)</strong> are designed for sequential data — data where order matters and each element depends on what came before. Text, audio, time-series sensor readings, financial streams, DNA sequences — all are sequential, and all were the primary domain of RNNs before Transformers emerged.</p>
+<p>A standard feedforward network processes each input independently. If you feed it the sentence "The bank was steep" word by word, it treats each word as if it had never seen the previous ones. It has no memory. An RNN solves this with a <strong>hidden state</strong> — a vector updated at every timestep that carries a compressed summary of everything seen so far. At each step, the RNN takes the current input AND the previous hidden state to produce a new hidden state. This hidden state is the network's running memory.</p>
+<p>The critical property: the same weight matrix is reused at every timestep — called <strong>parameter sharing across time</strong>. A single RNN can process sequences of any length with the same fixed parameter set. An input at timestep 1 and an input at timestep 100 are processed by identical weights; only the hidden state differs.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Understanding RNNs gives you the foundational intuition for WHY Transformers were invented. The core failures of vanilla RNNs — vanishing gradients over long sequences, sequential processing preventing parallelization, hidden-state information bottleneck — are precisely the problems Transformers were designed to solve.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">2</span> Why It Matters for AI Engineers</h2>
+<p>While Transformers dominate NLP, RNNs and their variants (LSTMs, GRUs) remain widely deployed in production for specific use cases: real-time streaming data processing (stateful, constant memory per step), time-series forecasting, audio processing, and on-device applications where Transformer KV-cache memory is prohibitive. Many production speech systems still use LSTM acoustic models. Knowing when an RNN is actually the right tool is a mark of senior engineering judgment.</p>
+<div class="tag-row"><span class="tag">Hidden State</span><span class="tag">LSTM</span><span class="tag">GRU</span><span class="tag">Vanishing Gradients</span><span class="tag">Sequence Modeling</span><span class="tag">BPTT</span></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">3</span> Real-World Example</h2>
+<p><strong>Real-Time Fraud Detection in Payment Streams</strong></p>
+<p>A major payment processor uses an LSTM to detect fraudulent transactions in real time. Each transaction arrives as a new element in a continuous sequence. The LSTM maintains a hidden state representing the user's recent transaction rhythm — the pattern of their spending. When a transaction dramatically deviates from this learned rhythm (unusual location, atypical amount, irregular timing), the LSTM's hidden state shifts into an anomalous region, triggering a fraud alert in under 100ms.</p>
+<p>This is exactly where LSTMs excel over Transformers: the input is an unbounded real-time stream. You cannot buffer the full sequence before making a decision. The LSTM processes each transaction as it arrives, updating its state incrementally — O(1) compute per timestep, constant memory, real-time throughput — properties Transformers cannot match for streaming applications.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">4</span> Step-by-Step Explanation</h2>
+<h3>Vanilla RNN</h3>
+<p>At each timestep t: <code>h_t = tanh(W_hh * h_{t-1} + W_xh * x_t + b)</code></p>
+<p>The hidden state h_t is a function of the previous hidden state and the current input. The problem: tanh saturates, so gradients during Backpropagation Through Time (BPTT) chain-multiply many small numbers across hundreds of timesteps — vanishing to near-zero for early timesteps. The network cannot learn what happened 50 steps ago.</p>
+<h3>LSTM (Long Short-Term Memory)</h3>
+<p>LSTMs solve vanishing gradients with a <strong>cell state</strong> — a separate memory highway that gradients can flow through with minimal degradation. Three learnable gates control information:</p>
+<ol>
+  <li><strong>Forget Gate:</strong> Decides what to erase from cell state. Output near 0 = forget, near 1 = keep.</li>
+  <li><strong>Input Gate:</strong> Decides what new information to write. A sigmoid selects positions; a tanh creates candidate values to write.</li>
+  <li><strong>Output Gate:</strong> Decides what part of the cell state to expose as the working hidden state.</li>
+</ol>
+<h3>GRU (Gated Recurrent Unit)</h3>
+<p>A simplified LSTM with two gates (reset and update) instead of three. Fewer parameters, trains faster, performs nearly as well on most tasks. GRU is the default choice when you need a recurrent model without LSTM's full complexity.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+input_size  = <span class="num">20</span>    <span class="cm"># features per timestep</span>
+hidden_size = <span class="num">64</span>    <span class="cm"># hidden state dimension</span>
+num_layers  = <span class="num">2</span>     <span class="cm"># stacked RNN layers</span>
+num_classes = <span class="num">3</span>     <span class="cm"># output categories</span>
+seq_len     = <span class="num">50</span>    <span class="cm"># 50 timesteps per sequence</span>
+batch_size  = <span class="num">8</span>
+
+<span class="kw">class</span> <span class="cl">SeqClassifier</span>(nn.<span class="cl">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, cell_type=<span class="str">'lstm'</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        kwargs = dict(batch_first=<span class="kw">True</span>, dropout=<span class="num">0.2</span>)
+        <span class="kw">if</span> cell_type == <span class="str">'rnn'</span>:
+            self.rnn = nn.<span class="cl">RNN</span>(input_size, hidden_size, num_layers, **kwargs)
+        <span class="kw">elif</span> cell_type == <span class="str">'lstm'</span>:
+            self.rnn = nn.<span class="cl">LSTM</span>(input_size, hidden_size, num_layers, **kwargs)
+        <span class="kw">else</span>:
+            self.rnn = nn.<span class="cl">GRU</span>(input_size, hidden_size, num_layers, **kwargs)
+        self.fc = nn.<span class="cl">Linear</span>(hidden_size, num_classes)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        out, _ = self.<span class="fn">rnn</span>(x)    <span class="cm"># out: (batch, seq_len, hidden)</span>
+        last = out[:, -<span class="num">1</span>, :]    <span class="cm"># use final timestep for classification</span>
+        <span class="kw">return</span> self.<span class="fn">fc</span>(last)
+
+<span class="cm"># Compare all three cell types</span>
+x = torch.<span class="fn">randn</span>(batch_size, seq_len, input_size)
+<span class="kw">for</span> cell <span class="kw">in</span> [<span class="str">'rnn'</span>, <span class="str">'lstm'</span>, <span class="str">'gru'</span>]:
+    model = <span class="cl">SeqClassifier</span>(cell_type=cell)
+    params = <span class="fn">sum</span>(p.<span class="fn">numel</span>() <span class="kw">for</span> p <span class="kw">in</span> model.<span class="fn">parameters</span>())
+    <span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+        out = model(x)
+    <span class="fn">print</span>(<span class="str">f"&#123;cell.upper():4s&#125; | params: &#123;params:,&#125; | output: &#123;out.shape&#125;"</span>)
+
+<span class="cm"># Many-to-many: label EVERY timestep (e.g. POS tagging, NER)</span>
+<span class="kw">class</span> <span class="cl">SeqTagger</span>(nn.<span class="cl">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        self.lstm = nn.<span class="cl">LSTM</span>(input_size, hidden_size, batch_first=<span class="kw">True</span>)
+        self.fc   = nn.<span class="cl">Linear</span>(hidden_size, num_classes)
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        out, _ = self.<span class="fn">lstm</span>(x)   <span class="cm"># (batch, seq_len, hidden)</span>
+        <span class="kw">return</span> self.<span class="fn">fc</span>(out)     <span class="cm"># (batch, seq_len, classes)</span>
+
+tagger = <span class="cl">SeqTagger</span>()
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    tags = tagger(x)
+<span class="fn">print</span>(<span class="str">f"Tagger output: &#123;tags.shape&#125;"</span>)  <span class="cm"># (8, 50, 3)</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+VANILLA RNN UNROLLED THROUGH TIME
+
+  x_1       x_2       x_3       x_4
+   |         |         |         |
+   v         v         v         v
+[h_1] --->[h_2] --->[h_3] --->[h_4]
+   |         |         |         |
+  y_1       y_2       y_3       y_4  (many-to-many: label every step)
+                                |
+                               y_4   (many-to-one: use only final output)
+
+SAME weights W_hh and W_xh used at EVERY timestep = parameter sharing
+
+LSTM GATES (protecting the cell state memory highway):
+
+  C_{t-1} -----------------------------------------> C_t
+      |        x             +              |
+      |    [Forget]     [Input Gate]        |
+      |    sigmoid      sigmoid x tanh     |
+      |    "erase?"     "what to write?"   |
+      |                                    |
+      +---> [Output Gate] ---------> h_t
+              sigmoid x tanh(C_t)
+
+WHY TRANSFORMERS REPLACED RNNs FOR MOST NLP:
+  RNN problem 1: Sequential — cannot parallelize across timesteps
+  RNN problem 2: Hidden state bottleneck — all context in 1 vector
+  RNN problem 3: Gradient vanishing — forgets events 100+ steps ago
+  Transformer: Attention connects every token directly to every other
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">7</span> Practical Use Cases</h2>
+<p><strong>Time-series forecasting:</strong> LSTMs are still widely used for financial forecasting, energy demand prediction, and supply chain modeling — tasks where sequential context across hundreds of timesteps is essential and the input is a continuous numeric stream with no fixed length.</p>
+<p><strong>Real-time streaming on edge devices:</strong> RNNs process sequences one step at a time with fixed, constant memory — ideal for microcontrollers, hearing aids, and IoT sensors where Transformer memory requirements are prohibitive.</p>
+<p><strong>Speech recognition:</strong> Bidirectional LSTMs with CTC (Connectionist Temporal Classification) loss were the industry standard before end-to-end Transformer models. Many embedded speech systems still use LSTM acoustic models for their predictable latency and small footprint.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Using vanilla RNN for sequences longer than ~20 timesteps:</strong> Vanilla RNNs suffer catastrophic gradient vanishing on longer sequences. For any serious sequential task, use LSTM or GRU. The extra parameters are almost always worth the cost.</div>
+<div class="callout warn">⚠️ <strong>Forgetting batch_first=True:</strong> PyTorch RNN/LSTM/GRU layers default to input shape (seq_len, batch, features). If your data is (batch, seq_len, features), you MUST pass batch_first=True. A shape mismatch here produces wrong outputs silently — not an error — which is extremely hard to debug.</div>
+<div class="callout danger">❌ <strong>Not detaching hidden states between batches:</strong> In stateful inference across multiple batches, the hidden state retains a live computational graph. Without calling h.detach(), backpropagation attempts to traverse all previous batches, causing memory explosion and incorrect gradients.</div>
+<div class="callout warn">⚠️ <strong>Using RNN for long NLP sequences when Transformers are available:</strong> For text sequences longer than ~100 tokens, Transformers consistently outperform LSTMs. RNNs compress all context into a fixed-size vector — information is unavoidably lost. Transformer attention directly connects every token to every other token.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the vanishing gradient problem in RNNs during Backpropagation Through Time. How does the LSTM cell state solve this mechanistically?</li>
+  <li>What are the three gates in an LSTM and what does each control? What is the difference between the cell state and the hidden state?</li>
+  <li>When would you choose a GRU over an LSTM? What does the GRU sacrifice and what does it gain?</li>
+  <li>Explain the difference between many-to-one, one-to-many, and many-to-many RNN architectures with a real use case for each.</li>
+  <li>Name three specific architectural weaknesses of RNNs that Transformers address. How does attention solve each one?</li>
+  <li>What is a bidirectional RNN? When would you use it, and why can't you use it for autoregressive text generation?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-rnn">
+  <li onclick="toggleTask(this)">Implement a vanilla RNN cell from scratch using only PyTorch tensor ops (no nn.RNN). Verify its output matches nn.RNN initialized with the same weights on a 10-timestep sequence.</li>
+  <li onclick="toggleTask(this)">Build an LSTM to predict the next value in a sine wave: generate 1000 timesteps of sin(x), train the LSTM on windows of 20 steps, and plot predicted vs actual on the test portion.</li>
+  <li onclick="toggleTask(this)">Compare gradient magnitudes during backprop in a vanilla RNN vs an LSTM on a 100-timestep sequence. Print the gradient norm for the first layer at each timestep to visualize vanishing.</li>
+  <li onclick="toggleTask(this)">Build a character-level language model using an LSTM. Train it on a small text (e.g. Shakespeare). Generate new text by sampling from the output distribution at each step.</li>
+  <li onclick="toggleTask(this)">Implement a bidirectional GRU for sentiment classification on IMDB reviews. Compare its F1 score against a unidirectional GRU baseline to see the benefit of bidirectional context.</li>
+</ul>

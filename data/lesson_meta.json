@@ -1,0 +1,162 @@
+{
+  "python": {
+    "stage": "Section 1 — Foundations",
+    "stageColor": "#00d4ff",
+    "file": "python.html"
+  },
+  "transformers": {
+    "stage": "Section 3 — Deep Learning",
+    "stageColor": "#10b981",
+    "file": "transformers.html"
+  },
+  "rag": {
+    "stage": "Section 4 — Large Language Models",
+    "stageColor": "#f59e0b",
+    "file": "rag.html"
+  },
+  "prompting": {
+    "stage": "Section 4 — Large Language Models",
+    "stageColor": "#f59e0b",
+    "file": "prompting.html"
+  },
+  "agents": {
+    "stage": "Section 5 — AI App Development",
+    "stageColor": "#ec4899",
+    "file": "agents.html"
+  },
+  "ds": {
+    "stage": "Section 1 — Foundations",
+    "stageColor": "#00d4ff",
+    "file": "ds.html"
+  },
+  "algo": {
+    "stage": "Section 1 — Foundations",
+    "stageColor": "#00d4ff",
+    "file": "algo.html"
+  },
+  "linalg": {
+    "stage": "Section 1 — Foundations",
+    "stageColor": "#00d4ff",
+    "file": "linalg.html"
+  },
+  "prob": {
+    "stage": "Section 1 — Foundations",
+    "stageColor": "#00d4ff",
+    "file": "prob.html"
+  },
+  "calc": {
+    "stage": "Section 1 — Foundations",
+    "stageColor": "#00d4ff",
+    "file": "calc.html"
+  },
+  "supervised": {
+    "stage": "Section 2 — Machine Learning",
+    "stageColor": "#7c3aed",
+    "file": "supervised.html"
+  },
+  "unsupervised": {
+    "stage": "Section 2 — Machine Learning",
+    "stageColor": "#7c3aed",
+    "file": "unsupervised.html"
+  },
+  "features": {
+    "stage": "Section 2 — Machine Learning",
+    "stageColor": "#7c3aed",
+    "file": "features.html"
+  },
+  "eval": {
+    "stage": "Section 2 — Machine Learning",
+    "stageColor": "#7c3aed",
+    "file": "eval.html"
+  },
+  "overfit": {
+    "stage": "Section 2 — Machine Learning",
+    "stageColor": "#7c3aed",
+    "file": "overfit.html"
+  },
+  "nn": {
+    "stage": "Section 3 — Deep Learning",
+    "stageColor": "#10b981",
+    "file": "nn.html"
+  },
+  "backprop": {
+    "stage": "Section 3 — Deep Learning",
+    "stageColor": "#10b981",
+    "file": "backprop.html"
+  },
+  "cnn": {
+    "stage": "Section 3 — Deep Learning",
+    "stageColor": "#10b981",
+    "file": "cnn.html"
+  },
+  "rnn": {
+    "stage": "Section 3 — Deep Learning",
+    "stageColor": "#10b981",
+    "file": "rnn.html"
+  },
+  "tokens": {
+    "stage": "Section 4 — Large Language Models",
+    "stageColor": "#f59e0b",
+    "file": "tokens.html"
+  },
+  "embeddings": {
+    "stage": "Section 4 — Large Language Models",
+    "stageColor": "#f59e0b",
+    "file": "embeddings.html"
+  },
+  "vectordb": {
+    "stage": "Section 4 — Large Language Models",
+    "stageColor": "#f59e0b",
+    "file": "vectordb.html"
+  },
+  "finetune": {
+    "stage": "Section 4 — Large Language Models",
+    "stageColor": "#f59e0b",
+    "file": "finetune.html"
+  },
+  "langchain": {
+    "stage": "Section 5 — AI App Development",
+    "stageColor": "#ec4899",
+    "file": "langchain.html"
+  },
+  "llamaindex": {
+    "stage": "Section 5 — AI App Development",
+    "stageColor": "#ec4899",
+    "file": "llamaindex.html"
+  },
+  "toolcall": {
+    "stage": "Section 5 — AI App Development",
+    "stageColor": "#ec4899",
+    "file": "toolcall.html"
+  },
+  "memory": {
+    "stage": "Section 5 — AI Applications",
+    "stageColor": "#ec4899",
+    "file": "memory.html"
+  },
+  "vision": {
+    "stage": "Section 6 — Multimodal AI",
+    "stageColor": "#06b6d4",
+    "file": "vision.html"
+  },
+  "imggen": {
+    "stage": "Section 6 — Multimodal AI",
+    "stageColor": "#06b6d4",
+    "file": "imggen.html"
+  },
+  "stt": {
+    "stage": "Section 6 — Multimodal AI",
+    "stageColor": "#06b6d4",
+    "file": "stt.html"
+  },
+  "tts": {
+    "stage": "Section 6 — Multimodal AI",
+    "stageColor": "#06b6d4",
+    "file": "tts.html"
+  },
+  "video": {
+    "stage": "Section 6 — Multimodal AI",
+    "stageColor": "#06b6d4",
+    "file": "video.html"
+  }
+}

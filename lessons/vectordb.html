@@ -1,0 +1,144 @@
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">1</span> Simple Explanation</h2>
+<p>A <strong>vector database</strong> is a specialized database designed to store, index, and search through millions or billions of embedding vectors with millisecond latency. Traditional databases (PostgreSQL, MySQL) search by exact value matching — "find all rows where name = 'Alice'". Vector databases search by <em>similarity</em> — "find the 10 vectors most similar to this query vector".</p>
+<p>This is called <strong>Approximate Nearest Neighbor (ANN) search</strong>. "Approximate" because finding the mathematically exact nearest neighbor across a billion 1536-dimensional vectors would take hours of brute force computation. Clever indexing algorithms (HNSW, IVF, LSH) reduce this to milliseconds by pre-organizing vectors so the search can navigate directly to the relevant region of space without comparing every vector.</p>
+<p>Think of it like a library. A brute-force search reads every book's first page to find the most relevant one. A vector database is like having a smart librarian who has already organized books by topic clusters — you describe what you want, the librarian walks directly to the right shelf, and hands you the 5 most relevant books in seconds.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Vector databases are what make RAG systems production-ready. Without them, semantic search over large knowledge bases would be impossibly slow. The combination of embedding models (convert text to vectors) + vector databases (search those vectors at scale) is the engine behind 90% of modern AI-powered search and retrieval systems.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">2</span> Why It Matters for AI Engineers</h2>
+<p>Every production RAG pipeline, recommendation engine, and semantic search feature requires a vector database backend. You need to understand how to choose between Pinecone (managed), Weaviate (open-source + managed), Chroma (local dev), Qdrant (high performance), and pgvector (PostgreSQL extension) based on scale, latency, and cost requirements. You also need to understand HNSW indexing parameters (ef_construction, M) and how they trade off recall vs. speed — the wrong settings cause silent quality degradation that's hard to detect.</p>
+<div class="tag-row"><span class="tag">HNSW</span><span class="tag">ANN Search</span><span class="tag">Pinecone</span><span class="tag">Chroma</span><span class="tag">Weaviate</span><span class="tag">pgvector</span></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">3</span> Real-World Example</h2>
+<p><strong>GitHub Copilot's Code Retrieval</strong></p>
+<p>GitHub Copilot uses a vector database to retrieve relevant code snippets from your current repository to include as context for code suggestions. When you start typing a function, Copilot embeds your current file and cursor position into a vector, then queries a vector index of your entire codebase to find the semantically most relevant functions, classes, and comments. This retrieved context is injected into the LLM prompt, allowing Copilot to suggest code that matches your project's actual patterns and naming conventions — not just generic patterns from its training data. The retrieval runs in under 100ms on codebases with hundreds of thousands of lines.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">4</span> Step-by-Step Explanation</h2>
+<h3>HNSW — How Vector Indexes Work</h3>
+<ol>
+  <li><strong>Build Phase:</strong> When you add vectors to a vector database, they are inserted into a multi-layer graph called HNSW (Hierarchical Navigable Small World). Top layers have sparse long-range connections; bottom layers have dense local connections — like a map that shows continents at the top and streets at the bottom.</li>
+  <li><strong>Search Phase:</strong> The query vector enters at the top layer and greedily navigates toward the closest vector at each layer, zooming in with each step. By the time it reaches the bottom layer, it's already in the right neighborhood and only needs to check a small local cluster.</li>
+  <li><strong>Result:</strong> Approximate top-K nearest neighbors with typically 95-99% recall in O(log n) time instead of O(n).</li>
+</ol>
+<h3>Key Parameters</h3>
+<p><code>M</code>: Number of connections per node. Higher = better recall, more memory. <code>ef_construction</code>: Graph quality during build. Higher = better recall, slower insertion. <code>ef_search</code>: Search beam width. Higher at query time = better recall, slower search. Start with M=16, ef_construction=200, ef_search=100 and tune from there.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># ── ChromaDB: easiest local vector DB for development ──</span>
+<span class="kw">import</span> chromadb
+<span class="kw">from</span> chromadb.utils <span class="kw">import</span> embedding_functions
+
+<span class="cm"># Create persistent local database</span>
+client = chromadb.<span class="fn">PersistentClient</span>(path=<span class="str">"./chroma_db"</span>)
+
+<span class="cm"># Use OpenAI embeddings (or swap for local model)</span>
+openai_ef = embedding_functions.<span class="cl">OpenAIEmbeddingFunction</span>(
+    api_key=<span class="str">"your-key"</span>,
+    model_name=<span class="str">"text-embedding-3-small"</span>
+)
+
+<span class="cm"># Create a collection (like a table)</span>
+collection = client.<span class="fn">get_or_create_collection</span>(
+    name=<span class="str">"knowledge_base"</span>,
+    embedding_function=openai_ef
+)
+
+<span class="cm"># Add documents (auto-embeds them)</span>
+docs = [
+    <span class="str">"Python is a high-level programming language."</span>,
+    <span class="str">"Neural networks learn by backpropagation."</span>,
+    <span class="str">"Docker containers package applications with dependencies."</span>,
+    <span class="str">"RAG retrieves context before LLM generation."</span>,
+]
+collection.<span class="fn">add</span>(
+    documents=docs,
+    ids=[<span class="str">f"doc_&#123;i&#125;"</span> <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="fn">len</span>(docs))]
+)
+
+<span class="cm"># Query: find 2 most relevant documents</span>
+results = collection.<span class="fn">query</span>(
+    query_texts=[<span class="str">"How do language models learn?"</span>],
+    n_results=<span class="num">2</span>
+)
+<span class="fn">print</span>(<span class="str">"Retrieved:"</span>, results[<span class="str">'documents'</span>])
+<span class="cm"># → ['Neural networks learn by backpropagation.',</span>
+<span class="cm">#    'RAG retrieves context before LLM generation.']</span>
+
+<span class="cm"># ── Metadata filtering ─────────────────────────────────</span>
+<span class="cm"># Store metadata alongside vectors for hybrid filtering</span>
+collection.<span class="fn">add</span>(
+    documents=[<span class="str">"FastAPI builds APIs rapidly in Python."</span>],
+    ids=[<span class="str">"doc_4"</span>],
+    metadatas=[&#123;<span class="str">"section"</span>: <span class="str">"deployment"</span>, <span class="str">"level"</span>: <span class="str">"beginner"</span>&#125;]
+)
+
+<span class="cm"># Semantic search + metadata filter together (hybrid search)</span>
+filtered = collection.<span class="fn">query</span>(
+    query_texts=[<span class="str">"python web framework"</span>],
+    n_results=<span class="num">2</span>,
+    where=&#123;<span class="str">"section"</span>: <span class="str">"deployment"</span>&#125;  <span class="cm"># pre-filter by metadata</span>
+)
+<span class="fn">print</span>(<span class="str">"Filtered result:"</span>, filtered[<span class="str">'documents'</span>])</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+HNSW INDEX STRUCTURE (side view)
+
+  Layer 2 (sparse, long-range):
+    A ──────────────────── E
+    │                      │
+  Layer 1 (medium):        │
+    A ── B ──── D ── E    │
+         │           │     │
+  Layer 0 (dense, all nodes):
+    A ─ B ─ C ─ D ─ E ─ F ─ G
+
+  SEARCH: Query Q enters at Layer 2
+    1. Find closest node in Layer 2: A
+    2. Drop to Layer 1 at A, find B (closer)
+    3. Drop to Layer 0 at B, scan local cluster: C
+    4. Return C as nearest neighbor
+
+  Without HNSW: compare Q to all 7 nodes = O(n)
+  With HNSW:    3 comparisons = O(log n)
+
+VECTOR DB COMPARISON:
+  ┌────────────┬──────────┬──────────┬──────────┬──────────┐
+  │            │ Chroma   │ Pinecone │ Weaviate │ pgvector │
+  ├────────────┼──────────┼──────────┼──────────┼──────────┤
+  │ Setup      │ 1 line   │ Managed  │ Docker   │ SQL ext  │
+  │ Best for   │ Dev/POC  │ Prod SaaS│ Enterprise│ Existing │
+  │ Scale      │ <100K    │ Billions │ Millions │ Millions │
+  │ Cost       │ Free     │ $$       │ Free/$   │ Free     │
+  └────────────┴──────────┴──────────┴──────────┴──────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">7</span> Practical Use Cases</h2>
+<p><strong>RAG knowledge base:</strong> Index your company's documentation, Confluence pages, or code repository. When a user asks a question, retrieve the top-5 most relevant chunks and inject them into the LLM prompt as context. The LLM answers based on current, specific company knowledge — not generic training data.</p>
+<p><strong>Duplicate ticket detection:</strong> Every incoming support ticket is embedded and checked against existing tickets. If a ticket with cosine similarity > 0.9 exists, it's auto-linked to the existing issue, preventing duplicate work and surfacing known solutions immediately.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Not chunking documents before indexing:</strong> Embedding a 50-page PDF as a single vector produces an "average of everything" vector that matches nothing specifically. Chunk into 200-500 token segments with overlap, embed each chunk, and store the source document reference as metadata.</div>
+<div class="callout danger">❌ <strong>Using ANN for tiny datasets:</strong> If you have fewer than 10,000 documents, brute-force exact search (numpy dot products) is often faster and simpler than setting up a full vector database with ANN indexing. Over-engineering kills developer velocity.</div>
+<div class="callout warn">⚠️ <strong>Ignoring metadata filtering:</strong> Most vector databases support pre-filtering by metadata before the ANN search. Not using this means users get documents from the wrong product, tenant, or time period. Always store structured metadata alongside vectors.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is approximate nearest neighbor search? Why "approximate" — what's the tradeoff vs exact search?</li>
+  <li>Explain HNSW at a high level. How does its hierarchical structure make search fast?</li>
+  <li>You're choosing between Chroma, Pinecone, and pgvector for a new project. Walk me through your decision framework.</li>
+  <li>A RAG system is returning irrelevant results. The vector search recall looks fine in isolation. What else could be causing the problem?</li>
+  <li>What is hybrid search? Why is it often better than pure semantic search for production systems?</li>
+  <li>How do you evaluate retrieval quality in a vector database? What metrics and test procedures would you use?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-vectordb">
+  <li onclick="toggleTask(this)">Build a local document Q&A system with ChromaDB: ingest 20 Wikipedia paragraphs, query with 5 different questions, and evaluate whether the top-2 retrieved chunks actually contain the answer.</li>
+  <li onclick="toggleTask(this)">Implement brute-force cosine search with NumPy on 1,000 vectors. Then install FAISS and run the same search. Benchmark both for 10,000 and 100,000 vectors to see where FAISS wins.</li>
+  <li onclick="toggleTask(this)">Demonstrate the chunking effect: embed a 3-page article as one vector and as 15 chunks. Query with 5 specific questions and compare retrieval precision in both cases.</li>
+  <li onclick="toggleTask(this)">Add metadata to a ChromaDB collection (category, date, author). Write a hybrid search function that takes a query + a metadata filter and verifies the filter is applied correctly.</li>
+  <li onclick="toggleTask(this)">Build a "find duplicates" script for a 500-item FAQ dataset: embed all questions, find all pairs with cosine similarity > 0.85, and print them as likely duplicates for human review.</li>
+</ul>

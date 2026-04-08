@@ -1,0 +1,304 @@
+[
+  {
+    "id": "s1",
+    "label": "Section 1 — Foundations",
+    "color": "#00d4ff",
+    "nodes": [
+      {
+        "id": "python",
+        "icon": "🐍",
+        "title": "Python Programming",
+        "tag": "essential"
+      },
+      {
+        "id": "ds",
+        "icon": "🗂️",
+        "title": "Data Structures",
+        "tag": "core"
+      },
+      {
+        "id": "algo",
+        "icon": "⚙️",
+        "title": "Algorithms",
+        "tag": "core"
+      },
+      {
+        "id": "linalg",
+        "icon": "🧮",
+        "title": "Linear Algebra",
+        "tag": "math"
+      },
+      {
+        "id": "prob",
+        "icon": "🎲",
+        "title": "Probability & Statistics",
+        "tag": "math"
+      },
+      {
+        "id": "calc",
+        "icon": "∫",
+        "title": "Calculus (basics)",
+        "tag": "math"
+      }
+    ]
+  },
+  {
+    "id": "s2",
+    "label": "Section 2 — Machine Learning",
+    "color": "#7c3aed",
+    "nodes": [
+      {
+        "id": "supervised",
+        "icon": "🎯",
+        "title": "Supervised Learning",
+        "tag": "ml"
+      },
+      {
+        "id": "unsupervised",
+        "icon": "🔍",
+        "title": "Unsupervised Learning",
+        "tag": "ml"
+      },
+      {
+        "id": "eval",
+        "icon": "📊",
+        "title": "Model Evaluation",
+        "tag": "ml"
+      },
+      {
+        "id": "features",
+        "icon": "🔧",
+        "title": "Feature Engineering",
+        "tag": "ml"
+      },
+      {
+        "id": "overfit",
+        "icon": "📉",
+        "title": "Overfitting vs Underfitting",
+        "tag": "ml"
+      }
+    ]
+  },
+  {
+    "id": "s3",
+    "label": "Section 3 — Deep Learning",
+    "color": "#10b981",
+    "nodes": [
+      {
+        "id": "nn",
+        "icon": "🧠",
+        "title": "Neural Networks",
+        "tag": "dl"
+      },
+      {
+        "id": "backprop",
+        "icon": "↩️",
+        "title": "Backpropagation",
+        "tag": "dl"
+      },
+      {
+        "id": "cnn",
+        "icon": "🖼️",
+        "title": "Convolutional NNs",
+        "tag": "dl"
+      },
+      {
+        "id": "rnn",
+        "icon": "🔄",
+        "title": "Recurrent NNs",
+        "tag": "dl"
+      },
+      {
+        "id": "transformers",
+        "icon": "⚡",
+        "title": "Transformers",
+        "tag": "dl"
+      }
+    ]
+  },
+  {
+    "id": "s4",
+    "label": "Section 4 — Large Language Models",
+    "color": "#f59e0b",
+    "nodes": [
+      {
+        "id": "tokens",
+        "icon": "🔤",
+        "title": "Tokens & Tokenization",
+        "tag": "llm"
+      },
+      {
+        "id": "embeddings",
+        "icon": "📐",
+        "title": "Embeddings",
+        "tag": "llm"
+      },
+      {
+        "id": "vectordb",
+        "icon": "🗄️",
+        "title": "Vector Databases",
+        "tag": "llm"
+      },
+      {
+        "id": "prompting",
+        "icon": "💬",
+        "title": "Prompt Engineering",
+        "tag": "llm"
+      },
+      {
+        "id": "finetune",
+        "icon": "🎛️",
+        "title": "Fine-Tuning",
+        "tag": "llm"
+      },
+      {
+        "id": "rag",
+        "icon": "📚",
+        "title": "RAG",
+        "tag": "llm"
+      }
+    ]
+  },
+  {
+    "id": "s5",
+    "label": "Section 5 — AI App Development",
+    "color": "#ec4899",
+    "nodes": [
+      {
+        "id": "langchain",
+        "icon": "⛓️",
+        "title": "LangChain",
+        "tag": "dev"
+      },
+      {
+        "id": "llamaindex",
+        "icon": "🦙",
+        "title": "LlamaIndex",
+        "tag": "dev"
+      },
+      {
+        "id": "agents",
+        "icon": "🤖",
+        "title": "AI Agents",
+        "tag": "dev"
+      },
+      {
+        "id": "toolcall",
+        "icon": "🔨",
+        "title": "Tool Calling",
+        "tag": "dev"
+      },
+      {
+        "id": "memory",
+        "icon": "💾",
+        "title": "Memory Systems",
+        "tag": "dev"
+      }
+    ]
+  },
+  {
+    "id": "s6",
+    "label": "Section 6 — Multimodal AI",
+    "color": "#06b6d4",
+    "nodes": [
+      {
+        "id": "vision",
+        "icon": "👁️",
+        "title": "Vision Models",
+        "tag": "multimodal"
+      },
+      {
+        "id": "imggen",
+        "icon": "🎨",
+        "title": "Image Generation",
+        "tag": "multimodal"
+      },
+      {
+        "id": "stt",
+        "icon": "🎤",
+        "title": "Speech to Text",
+        "tag": "multimodal"
+      },
+      {
+        "id": "tts",
+        "icon": "🔊",
+        "title": "Text to Speech",
+        "tag": "multimodal"
+      },
+      {
+        "id": "video",
+        "icon": "📹",
+        "title": "Video Understanding",
+        "tag": "multimodal"
+      }
+    ]
+  },
+  {
+    "id": "s7",
+    "label": "Section 7 — Deployment",
+    "color": "#84cc16",
+    "nodes": [
+      {
+        "id": "apis",
+        "icon": "🌐",
+        "title": "Model APIs",
+        "tag": "deploy"
+      },
+      {
+        "id": "fastapi",
+        "icon": "⚡",
+        "title": "FastAPI",
+        "tag": "deploy"
+      },
+      {
+        "id": "docker",
+        "icon": "🐳",
+        "title": "Docker",
+        "tag": "deploy"
+      },
+      {
+        "id": "cloud",
+        "icon": "☁️",
+        "title": "Cloud AI Services",
+        "tag": "deploy"
+      },
+      {
+        "id": "monitoring",
+        "icon": "📡",
+        "title": "Monitoring AI Systems",
+        "tag": "deploy"
+      }
+    ]
+  },
+  {
+    "id": "s8",
+    "label": "Section 8 — AI Safety",
+    "color": "#ef4444",
+    "nodes": [
+      {
+        "id": "injection",
+        "icon": "🛡️",
+        "title": "Prompt Injection",
+        "tag": "safety"
+      },
+      {
+        "id": "bias",
+        "icon": "⚖️",
+        "title": "Bias & Fairness",
+        "tag": "safety"
+      },
+      {
+        "id": "aisec",
+        "icon": "🔒",
+        "title": "AI Security",
+        "tag": "safety"
+      },
+      {
+        "id": "privacy",
+        "icon": "🕵️",
+        "title": "Privacy",
+        "tag": "safety"
+      }
+    ]
+  }
+]

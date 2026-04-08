@@ -1,0 +1,168 @@
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">1</span> Simple Explanation</h2>
+<p>The Transformer is the most important neural network architecture of the past decade. It powers GPT-4, Claude, Gemini, DALL-E, Stable Diffusion, and almost every major AI system today. Understanding Transformers is the single most important thing you can do as an AI engineer.</p>
+<p>Before Transformers (pre-2017), AI systems processed text sequentially — one word at a time, like reading left-to-right. This was slow and couldn't capture long-range relationships well. The Transformer introduced <strong>attention</strong>: the ability to look at all words simultaneously and decide which ones matter for understanding each word.</p>
+<div class="callout">💡 <strong>The key idea:</strong> When you read "The bank was steep because the river eroded it," you know "bank" means a riverbank, not a financial bank, because of "river." Attention mechanisms give neural networks this same contextual understanding.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">2</span> Why It Matters</h2>
+<p>Without understanding Transformers, you're treating LLMs as black boxes. You won't be able to debug why your model behaves a certain way, fine-tune effectively, optimize prompts intelligently, or understand context windows, attention limits, and embedding spaces.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">3</span> The Architecture — Step by Step</h2>
+<div class="diagram-block"><pre>
+Input: "The cat sat"
+
+  [The]  [cat]  [sat]
+    │       │      │
+┌───▼───────▼──────▼───┐
+│     EMBEDDING LAYER   │   Words → Vectors (e.g., 512-dim)
+│   + POSITIONAL ENC.   │   Adds position info (word order)
+└───────────┬───────────┘
+            │
+┌───────────▼────────────────────────────────────┐
+│            TRANSFORMER BLOCK (×N layers)        │
+│                                                  │
+│  ┌─────────────────────────────────────────┐    │
+│  │           MULTI-HEAD ATTENTION          │    │
+│  │                                          │    │
+│  │  Q (Query)  K (Key)  V (Value)          │    │
+│  │     ↓          ↓        ↓               │    │
+│  │  Attention = softmax(QK^T/√d) × V       │    │
+│  │  "How relevant is each word to me?"     │    │
+│  └─────────────────┬───────────────────────┘    │
+│                    │ + residual connection        │
+│  ┌─────────────────▼───────────────────────┐    │
+│  │        FEED FORWARD NETWORK             │    │
+│  │   Linear → ReLU → Linear               │    │
+│  │   (processes each position separately)  │    │
+│  └─────────────────────────────────────────┘    │
+└───────────────────────────┬────────────────────┘
+                            │  (repeat N times)
+                ┌───────────▼───────────┐
+                │     OUTPUT HEAD        │
+                │ Linear → Softmax      │
+                │ → Probability over    │
+                │   vocabulary          │
+                └───────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">4</span> Self-Attention Explained Simply</h2>
+<p>For each word, we create 3 vectors: a <strong>Query</strong> (what am I looking for?), a <strong>Key</strong> (what do I contain?), and a <strong>Value</strong> (what should I share?). Attention scores determine how much each word should "attend to" every other word.</p>
+
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">scaled_dot_product_attention</span>(Q, K, V):
+    <span class="str">"""
+    The core operation inside every Transformer.
+
+    Q: Query matrix  [seq_len, d_k]
+    K: Key matrix    [seq_len, d_k]
+    V: Value matrix  [seq_len, d_v]
+
+    Returns: weighted sum of Values, guided by Q-K similarity
+    """</span>
+    d_k = Q.shape[-<span class="num">1</span>]
+
+    <span class="cm"># Step 1: Compute similarity scores (QK^T)</span>
+    scores = np.<span class="fn">matmul</span>(Q, K.<span class="fn">transpose</span>(-<span class="num">2</span>, -<span class="num">1</span>))  <span class="cm"># [seq, seq]</span>
+
+    <span class="cm"># Step 2: Scale to prevent vanishing gradients</span>
+    scores = scores / np.<span class="fn">sqrt</span>(d_k)
+
+    <span class="cm"># Step 3: Softmax → probabilities (attention weights)</span>
+    attention_weights = np.<span class="fn">exp</span>(scores) / np.<span class="fn">sum</span>(
+        np.<span class="fn">exp</span>(scores), axis=-<span class="num">1</span>, keepdims=<span class="kw">True</span>
+    )
+    <span class="cm"># Each row sums to 1.0 — tells us "how much" to attend to each position</span>
+
+    <span class="cm"># Step 4: Weighted sum of Values</span>
+    output = np.<span class="fn">matmul</span>(attention_weights, V)
+
+    <span class="kw">return</span> output, attention_weights
+
+<span class="cm"># Toy example: 3 tokens, 4-dim embeddings</span>
+seq_len, d_model = <span class="num">3</span>, <span class="num">4</span>
+np.random.<span class="fn">seed</span>(<span class="num">42</span>)
+
+Q = np.random.<span class="fn">randn</span>(seq_len, d_model)
+K = np.random.<span class="fn">randn</span>(seq_len, d_model)
+V = np.random.<span class="fn">randn</span>(seq_len, d_model)
+
+output, weights = <span class="fn">scaled_dot_product_attention</span>(Q, K, V)
+
+<span class="fn">print</span>(<span class="str">"Attention weights (each row sums to 1):"</span>)
+<span class="fn">print</span>(np.<span class="fn">round</span>(weights, <span class="num">3</span>))
+<span class="cm"># Shows which tokens attend to which</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">5</span> Building a Mini Transformer with PyTorch</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> math
+
+<span class="kw">class</span> <span class="cl">MultiHeadAttention</span>(nn.<span class="cl">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model: <span class="cl">int</span>, n_heads: <span class="cl">int</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.d_k = d_model // n_heads  <span class="cm"># split dims across heads</span>
+
+        <span class="cm"># Project input → Q, K, V simultaneously</span>
+        self.W_qkv = nn.<span class="cl">Linear</span>(d_model, <span class="num">3</span> * d_model)
+        self.W_o = nn.<span class="cl">Linear</span>(d_model, d_model)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        B, T, C = x.shape  <span class="cm"># batch, time, channels</span>
+
+        <span class="cm"># Project to Q, K, V</span>
+        qkv = self.<span class="fn">W_qkv</span>(x)  <span class="cm"># (B, T, 3*C)</span>
+        q, k, v = qkv.<span class="fn">chunk</span>(<span class="num">3</span>, dim=-<span class="num">1</span>)  <span class="cm"># each (B, T, C)</span>
+
+        <span class="cm"># Reshape for multi-head: (B, heads, T, d_k)</span>
+        q = q.<span class="fn">view</span>(B, T, self.n_heads, self.d_k).<span class="fn">transpose</span>(<span class="num">1</span>, <span class="num">2</span>)
+        k = k.<span class="fn">view</span>(B, T, self.n_heads, self.d_k).<span class="fn">transpose</span>(<span class="num">1</span>, <span class="num">2</span>)
+        v = v.<span class="fn">view</span>(B, T, self.n_heads, self.d_k).<span class="fn">transpose</span>(<span class="num">1</span>, <span class="num">2</span>)
+
+        <span class="cm"># Attention scores</span>
+        scale = math.<span class="fn">sqrt</span>(self.d_k)
+        attn = (q @ k.<span class="fn">transpose</span>(-<span class="num">2</span>, -<span class="num">1</span>)) / scale  <span class="cm"># (B, heads, T, T)</span>
+        attn = torch.nn.functional.<span class="fn">softmax</span>(attn, dim=-<span class="num">1</span>)
+
+        <span class="cm"># Weighted values</span>
+        out = (attn @ v).<span class="fn">transpose</span>(<span class="num">1</span>, <span class="num">2</span>).<span class="fn">contiguous</span>()
+        out = out.<span class="fn">view</span>(B, T, C)  <span class="cm"># merge heads</span>
+        <span class="kw">return</span> self.<span class="fn">W_o</span>(out)
+
+<span class="cm"># Test it</span>
+model = <span class="cl">MultiHeadAttention</span>(d_model=<span class="num">512</span>, n_heads=<span class="num">8</span>)
+x = torch.<span class="fn">randn</span>(<span class="num">2</span>, <span class="num">10</span>, <span class="num">512</span>)  <span class="cm"># batch=2, seq=10, dim=512</span>
+out = model(x)
+<span class="fn">print</span>(out.shape)  <span class="cm"># torch.Size([2, 10, 512])</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">6</span> Key Variants You'll Encounter</h2>
+<div class="callout success">
+  <strong>Encoder-only (BERT style)</strong> — Used for classification, embeddings, understanding tasks. Sees the full sequence bidirectionally.<br><br>
+  <strong>Decoder-only (GPT style)</strong> — Used for generation. Each token can only attend to previous tokens (causal masking). This is what ChatGPT, Claude, Llama use.<br><br>
+  <strong>Encoder-Decoder (T5, BART style)</strong> — Used for translation, summarization. Encoder processes input; decoder generates output.
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">7</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What problem did Transformers solve that RNNs couldn't? Explain the attention mechanism in your own words.</li>
+  <li>Why do we scale attention scores by √d_k? What happens if we don't?</li>
+  <li>What is the difference between encoder-only and decoder-only Transformers? Give a use case for each.</li>
+  <li>What is "causal masking" and why is it needed in autoregressive language models?</li>
+  <li>What is the computational complexity of self-attention with respect to sequence length? Why is this a problem for long documents?</li>
+  <li>Explain positional encoding. Why can't Transformers learn order without it?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">8</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-transformers">
+  <li onclick="toggleTask(this)">Implement scaled dot-product attention from scratch using NumPy only</li>
+  <li onclick="toggleTask(this)">Load a pretrained BERT model from Hugging Face and visualize its attention weights on a sentence</li>
+  <li onclick="toggleTask(this)">Compare the output of GPT-2 (decoder-only) vs BERT (encoder-only) on the same input — observe the difference</li>
+  <li onclick="toggleTask(this)">Train a tiny character-level Transformer on Shakespeare text (Andrej Karpathy's nanoGPT is a great reference)</li>
+</ul>

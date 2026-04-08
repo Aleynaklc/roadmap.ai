@@ -1,0 +1,145 @@
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">1</span> Simple Explanation</h2>
+<p><strong>Tokenization</strong> is the process of breaking raw text into the discrete units that a language model actually processes. A model never sees letters or whole words directly — it sees <strong>tokens</strong>, which are small chunks of text mapped to integer IDs from a fixed vocabulary. Every LLM interaction starts with tokenization, and every output ends with detokenization (converting token IDs back into text).</p>
+<p>Tokens are not always whole words. Modern LLMs use <strong>subword tokenization</strong>: common words become single tokens ("the" = token 464), rare words split into multiple tokens ("tokenization" = ["token", "ization"]), and individual bytes are the fallback for truly novel characters. The word "unbelievably" might become 3 or 4 tokens depending on the vocabulary.</p>
+<p>The dominant algorithm is <strong>Byte Pair Encoding (BPE)</strong>. BPE starts with individual bytes and iteratively merges the most frequently co-occurring pairs into new tokens until a target vocabulary size is reached (typically 30,000 to 100,000 tokens). This gives the vocabulary a natural balance: common words and phrases are single tokens (efficient), while rare sequences decompose into recognizable subword pieces (flexible and robust).</p>
+<div class="callout">💡 <strong>Key insight:</strong> The token is the atom of the LLM universe. Understanding tokenization explains why LLMs count letters strangely, why context windows have specific limits, why the same content costs different amounts in different languages, and why certain prompts are more efficient than others. Senior AI engineers think in tokens instinctively.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">2</span> Why It Matters for AI Engineers</h2>
+<p>Every AI engineering decision involving LLMs is denominated in tokens: API costs are per-token, context window limits are in tokens, rate limits are in tokens-per-minute, and prompt compression strategies operate on tokens. Tokenization also directly affects model behavior: arithmetic is harder because numbers split unexpectedly ("123456" may become ["12", "34", "56"]). Languages with fewer training data representations often have sparser vocabularies, so the same sentence requires 3-5x more tokens than in English — increasing cost and reducing effective context capacity.</p>
+<div class="tag-row"><span class="tag">BPE</span><span class="tag">Vocabulary</span><span class="tag">Token IDs</span><span class="tag">Context Window</span><span class="tag">tiktoken</span><span class="tag">SentencePiece</span></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">3</span> Real-World Example</h2>
+<p><strong>OpenAI's tiktoken and the GPT-4 Vocabulary</strong></p>
+<p>GPT-4 uses a tokenizer called <strong>cl100k_base</strong> — a BPE vocabulary of approximately 100,000 tokens trained on internet text and code. The vocabulary has learned that "ing", "tion", "pre", "un", and "ed" are common enough to deserve dedicated tokens. It also learned that entire frequent sequences like " the" (space + the) are single tokens — because the leading space is part of the pattern.</p>
+<p>When OpenAI charges for API usage, they count every token in the prompt and every token in the response. A 1,000-word essay in English is roughly 1,300 tokens. The same essay in Thai might be 3,500 tokens — costing 2.7x more and consuming 2.7x more context window. This is why multilingual AI applications require careful token budget management. Enterprise systems use tiktoken to count tokens before sending to the API, implementing hard limits and progressive compression when budgets would be exceeded.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">4</span> Step-by-Step Explanation</h2>
+<h3>How BPE Works (Training Phase)</h3>
+<ol>
+  <li><strong>Initialize with bytes:</strong> Start with the 256 possible byte values as the initial vocabulary. Every text in the training corpus is represented as a sequence of bytes.</li>
+  <li><strong>Count all adjacent pairs:</strong> Scan the entire corpus and count how often each adjacent pair of tokens appears together. Example: the pair ("e", "r") might appear 2 million times.</li>
+  <li><strong>Merge the most frequent pair:</strong> Create a new token "er" by merging the top pair. Update all occurrences in the corpus representation.</li>
+  <li><strong>Repeat:</strong> Re-count pairs in the updated corpus, merge the new most frequent pair. Each iteration creates one new token.</li>
+  <li><strong>Stop at target vocabulary size:</strong> After N merge operations, the vocabulary has 256 + N tokens. GPT-4 performs approximately 99,744 merges to reach ~100,000 tokens.</li>
+</ol>
+<h3>At Inference Time</h3>
+<p>When new text arrives, the tokenizer applies the learned merge rules in the same order they were created during training — this is deterministic. The resulting token IDs are looked up in the embedding table, converted to vectors, and fed to the Transformer.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> tiktoken
+
+<span class="cm"># Load GPT-4's tokenizer</span>
+enc = tiktoken.<span class="fn">encoding_for_model</span>(<span class="str">"gpt-4"</span>)
+
+<span class="cm"># Encode text to token IDs</span>
+text = <span class="str">"Tokenization is the foundation of all LLMs."</span>
+token_ids = enc.<span class="fn">encode</span>(text)
+<span class="fn">print</span>(<span class="str">f"Token IDs: &#123;token_ids&#125;"</span>)
+<span class="fn">print</span>(<span class="str">f"Token count: &#123;len(token_ids)&#125;"</span>)
+
+<span class="cm"># Inspect each token boundary</span>
+<span class="fn">print</span>(<span class="str">"
+Token breakdown:"</span>)
+<span class="kw">for</span> tid <span class="kw">in</span> token_ids:
+    piece = enc.<span class="fn">decode_single_token_bytes</span>(tid).<span class="fn">decode</span>(<span class="str">'utf-8'</span>, errors=<span class="str">'replace'</span>)
+    <span class="fn">print</span>(<span class="str">f"  ID &#123;tid:6d&#125; -> '&#123;piece&#125;'"</span>)
+
+<span class="cm"># Decode back</span>
+<span class="fn">print</span>(<span class="str">"
+Decoded:"</span>, enc.<span class="fn">decode</span>(token_ids))
+
+<span class="cm"># Utility functions for production use</span>
+<span class="kw">def</span> <span class="fn">count_tokens</span>(text: str, model: str = <span class="str">"gpt-4"</span>) -> int:
+    enc = tiktoken.<span class="fn">encoding_for_model</span>(model)
+    <span class="kw">return</span> <span class="fn">len</span>(enc.<span class="fn">encode</span>(text))
+
+<span class="kw">def</span> <span class="fn">truncate_to_budget</span>(text: str, max_tokens: int, model: str = <span class="str">"gpt-4"</span>) -> str:
+    <span class="str">"""Hard-truncate text to fit within a token budget."""</span>
+    enc = tiktoken.<span class="fn">encoding_for_model</span>(model)
+    tokens = enc.<span class="fn">encode</span>(text)
+    <span class="kw">if</span> <span class="fn">len</span>(tokens) &lt;= max_tokens:
+        <span class="kw">return</span> text
+    <span class="kw">return</span> enc.<span class="fn">decode</span>(tokens[:max_tokens])
+
+<span class="cm"># Production pattern: token budget management</span>
+system_prompt = <span class="str">"You are a helpful assistant specializing in Python."</span>
+user_message  = <span class="str">"Explain everything about machine learning. " * 200</span>
+context_limit = <span class="num">8192</span>
+output_reserve = <span class="num">1000</span>
+
+available = context_limit - <span class="fn">count_tokens</span>(system_prompt) - output_reserve
+safe_message = <span class="fn">truncate_to_budget</span>(user_message, available)
+
+<span class="fn">print</span>(<span class="str">f"
+Original:  &#123;count_tokens(user_message):,&#125; tokens"</span>)
+<span class="fn">print</span>(<span class="str">f"Truncated: &#123;count_tokens(safe_message):,&#125; tokens"</span>)
+<span class="fn">print</span>(<span class="str">f"Fits in context: &#123;count_tokens(system_prompt) + count_tokens(safe_message) + output_reserve&#125; / &#123;context_limit&#125;"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+TOKENIZATION EXAMPLES (GPT-4 / cl100k_base)
+
+  Text                    Tokens (each box = 1 token)
+  ─────────────────────────────────────────────────────────
+  "Hello world"       -> ["Hello", " world"]              2 tokens
+  "tokenization"      -> ["token", "ization"]             2 tokens
+  "unbelievably"      -> ["un", "believ", "ably"]         3 tokens
+  "GPT-4"             -> ["G", "PT", "-", "4"]            4 tokens!
+  "123456789"         -> ["123", "456", "789"]            3 tokens
+  "Hello" in Thai:    -> 3-5 tokens (sparser vocab)
+
+CONTEXT WINDOW = TOKEN BUDGET:
+  GPT-4:   128,000 tokens ~ 182 pages of English text
+  Claude:  200,000 tokens ~ 285 pages
+  1 token ~ 0.75 English words on average
+
+  ┌─────────────────────────────────────────────────────────┐
+  │  CONTEXT WINDOW (128k tokens total)                     │
+  │  ┌──────────┬──────────────────────────┬────────────┐  │
+  │  │  System  │   Conversation History   │   Output   │  │
+  │  │  Prompt  │   (grows each turn)      │   Budget   │  │
+  │  │  ~300 t  │   ~125,700 tokens        │  ~2,000 t  │  │
+  │  └──────────┴──────────────────────────┴────────────┘  │
+  └─────────────────────────────────────────────────────────┘
+
+BPE MERGE LEARNING:
+  Iteration 0: ["h","e","l","l","o"," ","w","o","r","l","d"]
+  Merge "ll":  ["h","e","ll","o"," ","w","o","r","l","d"]
+  Merge "he":  ["he","ll","o"," ","w","o","r","l","d"]
+  Merge "hel": ...
+  After N merges: "hello" is a single token
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">7</span> Practical Use Cases</h2>
+<p><strong>API cost management:</strong> Enterprise applications processing millions of documents implement hard token limits before every API call. Prompt compression, summarization strategies, and tiered model routing are all built around token budgets. A 10% reduction in average prompt length can translate to millions of dollars in annual savings at scale.</p>
+<p><strong>RAG chunk sizing:</strong> When splitting documents for Retrieval-Augmented Generation, chunks must be sized in tokens — not words or characters — to fit within the model's context. A 512-token chunk is a common starting point, but must account for the full prompt template including the system message and question.</p>
+<p><strong>Multilingual cost optimization:</strong> Applications serving multiple languages use token counting to detect high-token-cost queries (Thai, Arabic, Chinese can cost 3-5x more than English for equivalent content) and apply proactive summarization or route to different model tiers.</p>
+<p><strong>Prompt injection hardening:</strong> Attackers use tokenization boundary tricks — invisible unicode characters or unusual spacing — to split security-relevant words across tokens, evading keyword-based safety filters. Understanding tokenization is essential for building robust input sanitization pipelines.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Counting words instead of tokens:</strong> "1,000 words = 1,000 tokens" is dangerously wrong. English prose averages 1.3 tokens/word. Code runs 2-4 tokens/symbol. Non-English languages can be 3-5x more token-dense. Always count with tiktoken before making cost or context estimates.</div>
+<div class="callout warn">⚠️ <strong>Using the wrong tokenizer for the model:</strong> GPT-4 uses cl100k_base, GPT-3.5 uses p50k_base, Llama uses SentencePiece with its own vocabulary. Counting with the wrong tokenizer gives incorrect results. Always match tokenizer to the exact model being called.</div>
+<div class="callout danger">❌ <strong>Ignoring special tokens in the context budget:</strong> Chat templates add special tokens like start-of-turn and end-of-turn markers that consume budget. A prompt counting as 800 raw tokens may be 950 tokens with the full chat template applied. Always measure after applying the template.</div>
+<div class="callout warn">⚠️ <strong>Expecting character-level reasoning from token-level models:</strong> LLMs see tokens, not characters. "How many r's in strawberry?" fails because the model sees ["straw","berry"] — the individual letter "r" is never an explicit unit of processing. Design tasks and evaluations with token boundaries in mind.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain BPE tokenization step by step. How does vocabulary size affect the tradeoff between efficiency and flexibility?</li>
+  <li>Why do LLMs struggle with simple character-level tasks like counting letters or reversing a string? Trace the failure through tokenization.</li>
+  <li>You are building a multi-turn chatbot with a 16,000-token context window. How would you architect conversation history management to prevent context overflow gracefully?</li>
+  <li>Why does the same semantic content cost different numbers of tokens in English vs Thai? What engineering strategies mitigate this for multilingual products?</li>
+  <li>What are special tokens? Give examples of how they are used in both pre-training and instruction fine-tuning contexts.</li>
+  <li>A user's prompt is 3,000 tokens and your model's context limit is 4,096 with max_output_tokens=1,500. What happens? How do you handle this gracefully in production?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-tokens">
+  <li onclick="toggleTask(this)">Use tiktoken to tokenize 10 different strings: an English sentence, a Python code snippet, a URL, an emoji, a large number, and a Thai sentence. Print token count and all individual token boundaries for each.</li>
+  <li onclick="toggleTask(this)">Write a TokenBudgetManager class with a method that accepts a system prompt, a list of conversation turns, and a max_tokens limit, and trims oldest turns until the total fits within budget.</li>
+  <li onclick="toggleTask(this)">Implement a minimal BPE tokenizer from scratch on a small English corpus. Start with character tokens, perform 20 merge steps, and print the resulting vocabulary alongside a tokenized sample sentence.</li>
+  <li onclick="toggleTask(this)">Compare token counts for the same paragraph in English, French, Spanish, Chinese, and Arabic using tiktoken or the HuggingFace tokenizer. Calculate the cost multiplier vs English at $0.01 per 1,000 tokens.</li>
+  <li onclick="toggleTask(this)">Build a RAG chunk splitter that splits documents by token count (not character count) using tiktoken, with configurable chunk_size and overlap parameters. Verify all chunks are strictly within token limits.</li>
+</ul>

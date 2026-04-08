@@ -1,0 +1,136 @@
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">1</span> Simple Explanation</h2>
+<p>Artificial Neural Networks (ANNs) are the foundational architecture of deep learning — exceptionally powerful mathematical frameworks designed to approximate highly complex, non-linear functions. Inspired loosely by biological neurons, they organize computation into layers of interconnected nodes.</p>
+<p>Think of it like a committee making a decision about a house price. The input layer receives raw facts (square footage, age, zip code). These pass to hidden layers of specialists. One specialist focuses on the relationship between age and location, another on the ratio of bedrooms to square footage. Each specialist assigns a weight (importance) to its inputs, applies a non-linear threshold (activation function), and passes its conclusion to the next layer. The output layer synthesizes all these specialized opinions into a final prediction.</p>
+<p>A single neuron computes: <code>z = (w₁x₁ + w₂x₂ + … + wₙxₙ) + b</code> — a dot product of inputs and weights, plus a bias. This linear operation is then passed through a non-linear <strong>activation function</strong> like ReLU. This non-linearity is the critical ingredient: without it, no matter how many layers you stack, the entire network collapses mathematically into a single linear model.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Activation functions are what give neural networks their expressive power. ReLU alone — a function as simple as <code>max(0, x)</code> — is sufficient to make a neural network capable of approximating any continuous function, given enough neurons. This is the Universal Approximation Theorem.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">2</span> Why It Matters for AI Engineers</h2>
+<p>Deep learning has consumed Computer Vision, Natural Language Processing, and Generative AI. Whether you are building a Transformer for LLMs, a CNN for medical imaging, or a custom layer for a recommendation system, they are all specialized extensions of the basic feedforward neural network. Understanding the forward pass, matrix dimensions, and activation functions is the foundation everything else rests on.</p>
+<p>When you encounter NaN losses, exploding gradients, or training that refuses to converge, you cannot debug these without understanding what is happening inside each layer. Treating neural networks as black boxes works until it doesn't — and in production, it will fail at the worst possible moment.</p>
+<div class="tag-row"><span class="tag">Perceptron</span><span class="tag">Hidden Layers</span><span class="tag">Weights &amp; Biases</span><span class="tag">Activation Functions</span><span class="tag">Forward Pass</span><span class="tag">PyTorch</span></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">3</span> Real-World Example</h2>
+<p><strong>Predictive Maintenance in Industrial Systems</strong></p>
+<p>A manufacturing plant embeds 500 sensors across its machinery — measuring vibration, temperature, torque, and current. A traditional threshold-based rule system ("alert if temperature &gt; 95°C") generates too many false alarms and misses novel failure modes.</p>
+<p>An AI engineering team deploys a feedforward neural network. The Input Layer ingests the 500-dimensional sensor vector. Two Hidden Layers (256 → 128 neurons) learn increasingly abstract patterns: early layers detect simple correlations (vibration + temperature), deeper layers recognize complex signatures ("this specific combination of 7 signals occurs 4 hours before motor failure"). The Output Layer uses Softmax across 3 classes: Normal, Warning, Critical. Because this is pure matrix multiplication, it runs in microseconds on a small edge GPU — fast enough to act before failure occurs.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">4</span> Step-by-Step Explanation: The Forward Pass</h2>
+<ol>
+  <li><strong>Input Representation:</strong> Convert data into a numerical tensor <strong>X</strong> of shape (batch_size, n_features).</li>
+  <li><strong>Linear Transformation:</strong> Multiply by weight matrix <strong>W</strong> and add bias <strong>b</strong>: <code>Z = X · W + b</code>. Weights determine connection strength. Biases allow the activation to shift, enabling the model to fit patterns that don't pass through the origin.</li>
+  <li><strong>Activation Function:</strong> Pass Z through a non-linear function: <code>A = f(Z)</code>.
+    <ul>
+      <li><strong>ReLU:</strong> <code>max(0, x)</code> — fast, avoids vanishing gradients, used in almost all hidden layers today.</li>
+      <li><strong>Sigmoid:</strong> Squashes output to (0,1). Used in binary classification output layers. Causes vanishing gradients in deep networks.</li>
+      <li><strong>Softmax:</strong> Converts a vector of raw scores to probabilities summing to 1. Used in multi-class classification output layers.</li>
+      <li><strong>GELU:</strong> Smooth approximation of ReLU used in Transformers (BERT, GPT). Slightly outperforms ReLU on NLP tasks.</li>
+    </ul>
+  </li>
+  <li><strong>Layer Stacking:</strong> Output A of layer N becomes input X of layer N+1. This repeats through all hidden layers.</li>
+  <li><strong>Output Generation:</strong> The final layer produces the prediction — a single neuron for regression, or Softmax over N neurons for N-class classification.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">5</span> Python Code Example</h2>
+<p>A complete PyTorch neural network with proper architecture design, forward pass tracing, and safe inference.</p>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">class</span> <span class="cl">MaintenanceNet</span>(nn.<span class="cl">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, in_features: <span class="cl">int</span>, n_classes: <span class="cl">int</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        self.fc1     = nn.<span class="cl">Linear</span>(in_features, <span class="num">128</span>)  <span class="cm"># W shape: [in_features, 128]</span>
+        self.fc2     = nn.<span class="cl">Linear</span>(<span class="num">128</span>, <span class="num">64</span>)
+        self.fc3     = nn.<span class="cl">Linear</span>(<span class="num">64</span>, n_classes)
+        self.dropout = nn.<span class="cl">Dropout</span>(p=<span class="num">0.3</span>)
+        self.bn1     = nn.<span class="cl">BatchNorm1d</span>(<span class="num">128</span>)  <span class="cm"># stabilizes training</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.<span class="fn">fc1</span>(x)
+        x = self.<span class="fn">bn1</span>(x)             <span class="cm"># normalize before activation</span>
+        x = F.<span class="fn">relu</span>(x)
+        x = self.<span class="fn">dropout</span>(x)        <span class="cm"># only active during training</span>
+        x = F.<span class="fn">relu</span>(self.<span class="fn">fc2</span>(x))
+        <span class="kw">return</span> self.<span class="fn">fc3</span>(x)          <span class="cm"># raw logits — CrossEntropyLoss handles softmax</span>
+
+<span class="cm"># Instantiate: 20 sensor features → 3 classes (Normal/Warning/Critical)</span>
+model = <span class="cl">MaintenanceNet</span>(in_features=<span class="num">20</span>, n_classes=<span class="num">3</span>)
+<span class="fn">print</span>(model)
+<span class="fn">print</span>(<span class="str">f"Parameters: &#123;sum(p.numel() for p in model.parameters()):,&#125;"</span>)
+
+<span class="cm"># Trace tensor shapes through the forward pass</span>
+batch = torch.<span class="fn">randn</span>(<span class="num">8</span>, <span class="num">20</span>)   <span class="cm"># 8 samples, 20 features</span>
+model.<span class="fn">eval</span>()                  <span class="cm"># turns off dropout for inference</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    logits = model(batch)      <span class="cm"># shape: [8, 3]</span>
+    probs  = F.<span class="fn">softmax</span>(logits, dim=<span class="num">1</span>)  <span class="cm"># shape: [8, 3], each row sums to 1</span>
+    preds  = probs.<span class="fn">argmax</span>(dim=<span class="num">1</span>)       <span class="cm"># shape: [8] — predicted class per sample</span>
+
+<span class="fn">print</span>(<span class="str">f"Input:  &#123;batch.shape&#125;"</span>)    <span class="cm"># [8, 20]</span>
+<span class="fn">print</span>(<span class="str">f"Logits: &#123;logits.shape&#125;"</span>)   <span class="cm"># [8, 3]</span>
+<span class="fn">print</span>(<span class="str">f"Probs:  &#123;probs.shape&#125;"</span>)    <span class="cm"># [8, 3]</span>
+<span class="fn">print</span>(<span class="str">f"Preds:  &#123;preds&#125;"</span>)          <span class="cm"># [8] — 0, 1, or 2 for each sample</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+FEEDFORWARD NEURAL NETWORK — Shape Flow
+
+  INPUT (batch=8, features=20)
+       │
+  ┌────▼─────────────────────────────────────────┐
+  │  fc1: Linear(20, 128)                         │
+  │  W shape: [20, 128]    output: [8, 128]       │
+  │  BatchNorm → ReLU → Dropout(0.3)              │
+  └────┬─────────────────────────────────────────┘
+       │
+  ┌────▼─────────────────────────────────────────┐
+  │  fc2: Linear(128, 64)                         │
+  │  W shape: [128, 64]    output: [8, 64]        │
+  │  ReLU                                         │
+  └────┬─────────────────────────────────────────┘
+       │
+  ┌────▼─────────────────────────────────────────┐
+  │  fc3: Linear(64, 3)                           │
+  │  W shape: [64, 3]      output: [8, 3] logits │
+  └────┬─────────────────────────────────────────┘
+       │
+  Softmax → probabilities [8, 3], each row sums to 1.0
+  argmax  → predictions   [8]    class 0, 1, or 2
+
+ACTIVATION FUNCTIONS:
+  Input x:   -3   -1    0    1    3
+  ReLU:       0    0    0    1    3   ← simple, fast, no vanishing gradient
+  Sigmoid:  .05  .27  .50  .73  .95  ← squashes to (0,1), vanishes in deep nets
+  Tanh:     -.99 -.76   0  .76  .99  ← centered at 0, still vanishes deeply
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">7</span> Practical Use Cases</h2>
+<p><strong>Tabular data at scale:</strong> When structured datasets exceed millions of rows with complex non-linear interactions (ad click-through prediction, recommendation scoring), deep neural networks consistently outperform gradient boosting.</p>
+<p><strong>Foundation for all advanced architectures:</strong> Every Transformer block ends with a multi-layer perceptron (feedforward network). Every CNN has fully connected layers at the end. You cannot build advanced architectures without understanding the basic feedforward network.</p>
+<p><strong>Reinforcement learning value functions:</strong> In systems like AlphaGo or autonomous driving, deep neural networks approximate value functions — estimating the long-term reward of taking a specific action in a specific state.</p>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Not normalizing inputs:</strong> Neural networks expect input features centered near zero with small variance. Raw data with one feature at 100,000 and another at 0.001 causes gradient explosions and unstable training. Always scale inputs first.</div>
+<div class="callout warn">⚠️ <strong>Applying Softmax before CrossEntropyLoss in PyTorch:</strong> PyTorch's <code>nn.CrossEntropyLoss</code> applies Softmax internally and expects raw logits. If you apply Softmax in the forward pass AND pass the result to CrossEntropyLoss, you are double-applying it — destroying gradient flow.</div>
+<div class="callout danger">❌ <strong>Misunderstanding layer dimensions:</strong> The output dimension of layer N must equal the input dimension of layer N+1. If <code>fc1 = Linear(20, 128)</code> and <code>fc2 = Linear(64, 32)</code>, you will get a shape mismatch error. Always trace tensor shapes on paper when designing architectures.</div>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What happens mathematically if you build a 100-layer neural network with no non-linear activation functions between layers?</li>
+  <li>Explain the difference between a model parameter (weight/bias) and a hyperparameter (learning rate, layer count). Who controls each?</li>
+  <li>Why has ReLU almost entirely replaced sigmoid in hidden layers? What is the dying ReLU problem and how do Leaky ReLU and GELU address it?</li>
+  <li>Trace the matrix shape through a forward pass. Input batch is (64, 128). The linear layer has 512 output neurons. What is the weight matrix shape and the output tensor shape?</li>
+  <li>What is the purpose of the bias vector? What happens if you force all biases to zero during training?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(16,185,129,.15);color:#10b981">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-nn">
+  <li onclick="toggleTask(this)">Implement a single-neuron forward pass from scratch using only NumPy: create random weights, compute the dot product, add bias, and apply a sigmoid function. Verify against nn.Linear with the same weights in PyTorch.</li>
+  <li onclick="toggleTask(this)">Build a 3-layer PyTorch network. Pass a dummy tensor through it and print the .shape after every single layer to trace the dimension transformations explicitly.</li>
+  <li onclick="toggleTask(this)">Intentionally trigger a shape mismatch error by setting incompatible layer dimensions, then fix it. Understanding the error message is half the debugging skill.</li>
+  <li onclick="toggleTask(this)">Compare four activation functions (ReLU, Sigmoid, Tanh, GELU) by plotting their output and derivative from x=-5 to x=5. Identify where each derivative approaches zero (vanishing gradient risk).</li>
+  <li onclick="toggleTask(this)">Add BatchNorm1d between layers of a PyTorch network. Verify that setting model.train() vs model.eval() changes the BatchNorm behavior by inspecting the running mean before and after 10 forward passes.</li>
+</ul>

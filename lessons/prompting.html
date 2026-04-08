@@ -1,0 +1,132 @@
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">1</span> Simple Explanation</h2>
+<p>Prompt engineering is the art and science of communicating with AI models effectively. Just like how you'd phrase a request differently to a junior intern vs. a senior expert, the way you phrase a request to an LLM dramatically affects the quality of the output.</p>
+<div class="callout">💡 <strong>Key insight:</strong> A well-engineered prompt can make a smaller model outperform a larger one on specific tasks. Prompt engineering is often the highest-leverage skill an AI engineer can have — it's free compute.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">2</span> Core Techniques</h2>
+<h3>Zero-Shot, One-Shot, Few-Shot</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+client = <span class="cl">OpenAI</span>()
+
+<span class="kw">def</span> <span class="fn">chat</span>(prompt: <span class="cl">str</span>) -> <span class="cl">str</span>:
+    <span class="kw">return</span> client.chat.completions.<span class="fn">create</span>(
+        model=<span class="str">"gpt-4o"</span>,
+        messages=[&#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: prompt&#125;]
+    ).choices[<span class="num">0</span>].message.content
+
+<span class="cm"># ─── ZERO-SHOT: No examples ───</span>
+zero_shot = <span class="str">"""Classify the sentiment of this review as 
+POSITIVE, NEGATIVE, or NEUTRAL.
+
+Review: "The product arrived late but worked great!"
+Sentiment:"""</span>
+
+<span class="cm"># ─── FEW-SHOT: Give examples first ───</span>
+few_shot = <span class="str">"""Classify sentiment as POSITIVE, NEGATIVE, or NEUTRAL.
+
+Examples:
+Review: "Amazing quality, fast shipping!" → POSITIVE
+Review: "Broke after one day, terrible." → NEGATIVE  
+Review: "It's okay, nothing special." → NEUTRAL
+Review: "Love it! But delivery was a day late." → POSITIVE
+
+Now classify:
+Review: "The product arrived late but worked great!"
+Sentiment:"""</span>
+
+<span class="cm"># Few-shot almost always outperforms zero-shot on classification</span>
+<span class="fn">print</span>(<span class="fn">chat</span>(few_shot))</code></pre>
+</div>
+
+<h3>Chain-of-Thought (CoT) Prompting</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Standard prompt — often wrong on math/logic</span>
+standard = <span class="str">"""A store sells apples for $1.50 each and oranges for $2.00.
+If Sarah buys 3 apples and 2 oranges, and pays with a $10 bill,
+how much change does she get?"""</span>
+
+<span class="cm"># Chain-of-Thought — "think step by step"</span>
+cot = <span class="str">"""A store sells apples for $1.50 each and oranges for $2.00.
+If Sarah buys 3 apples and 2 oranges, and pays with a $10 bill,
+how much change does she get?
+
+Let's think step by step:"""</span>
+
+<span class="cm"># Even simpler CoT trigger:</span>
+cot_simple = <span class="str">"... Think step by step before giving your final answer."</span>
+
+<span class="cm"># Self-consistency: run CoT multiple times, take majority vote</span>
+<span class="kw">def</span> <span class="fn">self_consistent_answer</span>(question: <span class="cl">str</span>, n: <span class="cl">int</span> = <span class="num">5</span>) -> <span class="cl">str</span>:
+    answers = [<span class="fn">chat</span>(question + <span class="str">"
+Think step by step."</span>) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n)]
+    <span class="cm"># In practice, extract just the final answer and vote</span>
+    <span class="kw">return</span> <span class="fn">max</span>(<span class="fn">set</span>(answers), key=answers.count)</code></pre>
+</div>
+
+<h3>System Prompts & Persona Engineering</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Anatomy of a production system prompt</span>
+SYSTEM_PROMPT = <span class="str">"""You are CodeReviewer, an expert senior software engineer 
+specializing in Python, security, and performance optimization.
+
+## Your Persona
+- Direct and technical — no fluff
+- Always cite specific line numbers when giving feedback
+- Security-first mindset: flag any potential vulnerabilities
+
+## Your Task
+Review submitted code and provide structured feedback.
+
+## Output Format
+Always respond in this exact JSON structure:
+&#123;
+  "summary": "One sentence overall assessment",
+  "issues": [
+    &#123;"severity": "critical|high|medium|low", "line": N, "description": "..."&#125;
+  ],
+  "suggestions": ["..."],
+  "score": 1-10
+&#125;
+
+## Rules
+- Never write code for the user unless asked
+- If the code has a security vulnerability, always rate it critical
+- Be specific, not vague"""</span>
+
+response = client.chat.completions.<span class="fn">create</span>(
+    model=<span class="str">"gpt-4o"</span>,
+    messages=[
+        &#123;<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: SYSTEM_PROMPT&#125;,
+        &#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Review this: eval(user_input)"</span>&#125;
+    ],
+    response_format=&#123;<span class="str">"type"</span>: <span class="str">"json_object"</span>&#125;
+)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">3</span> Advanced Patterns</h2>
+<div class="callout success">
+  <strong>ReAct Pattern</strong> (Reason + Act) — Have the model reason before acting. Used in agents.<br>
+  <strong>TREE-OF-THOUGHT</strong> — Explore multiple reasoning paths, like a tree search.<br>
+  <strong>Structured Output</strong> — Force JSON output and parse it reliably with Pydantic.<br>
+  <strong>Prompt Chaining</strong> — Break complex tasks into sequential prompts where output of one feeds the next.
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">4</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between zero-shot and few-shot prompting? When does each work best?</li>
+  <li>Explain Chain-of-Thought prompting. Why does it improve accuracy on reasoning tasks?</li>
+  <li>What is a system prompt? How does it differ from a user prompt?</li>
+  <li>How would you prevent prompt injection attacks in a production system?</li>
+  <li>Describe 3 strategies for improving LLM output consistency without fine-tuning.</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">5</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-prompting">
+  <li onclick="toggleTask(this)">Build a few-shot sentiment classifier and compare accuracy vs zero-shot on 20 test examples</li>
+  <li onclick="toggleTask(this)">Create a system prompt that reliably returns structured JSON for any product description</li>
+  <li onclick="toggleTask(this)">Implement a CoT reasoning chain for solving word problems — test on 10 math problems</li>
+  <li onclick="toggleTask(this)">Write a prompt injection attack and then write a system prompt that defends against it</li>
+</ul>

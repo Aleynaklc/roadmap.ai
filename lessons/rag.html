@@ -1,0 +1,211 @@
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">1</span> Simple Explanation</h2>
+<p>RAG — Retrieval-Augmented Generation — is how you give an LLM access to your own documents, databases, or real-time information without retraining the model.</p>
+<p>Think of it like this: Instead of expecting a lawyer to memorize every case ever written, you give them a search tool. When a client asks a question, the lawyer searches for relevant cases, reads them, then gives a precise answer. RAG does the same thing for LLMs.</p>
+<div class="callout">🎯 <strong>The core problem RAG solves:</strong> LLMs have a knowledge cutoff and can't know about your internal company docs, your product specs, or today's news. RAG bridges this gap without expensive fine-tuning.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">2</span> Why It Matters</h2>
+<p>RAG is the most commonly deployed LLM architecture in production today. Customer support bots, legal research tools, code assistants with private codebases, medical Q&A systems — all of these use RAG. If you're building an AI product that needs to work with custom data, you need RAG.</p>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">3</span> The Full RAG Pipeline</h2>
+<div class="diagram-block"><pre>
+PHASE 1: INDEXING (run once, or on document updates)
+
+  Your Documents (PDFs, docs, websites, code)
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  CHUNKING  — Split into manageable       │
+  │  pieces (e.g., 512 tokens each with      │
+  │  50-token overlap)                        │
+  └──────┬──────────────────────────────────┘
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  EMBEDDING — Convert each chunk into     │
+  │  a dense vector (e.g., 1536 dimensions)  │
+  │  using text-embedding-3-small or BGE     │
+  └──────┬──────────────────────────────────┘
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  VECTOR STORE — Store embeddings in      │
+  │  Pinecone, Weaviate, pgvector, ChromaDB  │
+  └─────────────────────────────────────────┘
+
+PHASE 2: RETRIEVAL + GENERATION (every user query)
+
+  User: "What is our refund policy?"
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  EMBED QUERY — Same model as indexing!   │
+  │  query_vec = embed("What is our refund…")│
+  └──────┬──────────────────────────────────┘
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  SIMILARITY SEARCH — Find top-K chunks   │
+  │  via cosine similarity in vector store   │
+  │  Returns: top 3-5 relevant passages      │
+  └──────┬──────────────────────────────────┘
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  AUGMENT PROMPT — Build context-rich     │
+  │  prompt: [System] + [Retrieved docs]     │
+  │  + [User question]                        │
+  └──────┬──────────────────────────────────┘
+         │
+  ┌──────▼──────────────────────────────────┐
+  │  LLM GENERATION — Model answers based   │
+  │  ONLY on provided context                │
+  └─────────────────────────────────────────┘
+         │
+  "Our refund policy allows returns within 30 days..."
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">4</span> Complete RAG Implementation</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># pip install openai chromadb sentence-transformers</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+<span class="kw">import</span> chromadb
+<span class="kw">from</span> chromadb.utils <span class="kw">import</span> embedding_functions
+
+client = <span class="cl">OpenAI</span>()
+
+<span class="cm"># ── Step 1: Setup ChromaDB (local vector store) ──</span>
+chroma_client = chromadb.<span class="fn">Client</span>()
+openai_ef = embedding_functions.<span class="cl">OpenAIEmbeddingFunction</span>(
+    model_name=<span class="str">"text-embedding-3-small"</span>
+)
+collection = chroma_client.<span class="fn">create_collection</span>(
+    name=<span class="str">"docs"</span>,
+    embedding_function=openai_ef
+)
+
+<span class="cm"># ── Step 2: Index your documents ──</span>
+documents = [
+    <span class="str">"Our refund policy: customers can return products within 30 days."</span>,
+    <span class="str">"Shipping times: standard delivery takes 5-7 business days in the US."</span>,
+    <span class="str">"Premium members get free 2-day shipping on all orders over $50."</span>,
+    <span class="str">"Contact support: email support@example.com or call 1-800-SUPPORT."</span>,
+    <span class="str">"Holiday hours: our support team is available Mon-Fri 9am-5pm EST."</span>,
+]
+
+collection.<span class="fn">add</span>(
+    documents=documents,
+    ids=[<span class="str">f"doc_&#123;i&#125;"</span> <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="fn">len</span>(documents))]
+)
+<span class="fn">print</span>(<span class="str">f"✓ Indexed &#123;len(documents)&#125; documents"</span>)
+
+<span class="cm"># ── Step 3: RAG Query Function ──</span>
+<span class="kw">def</span> <span class="fn">rag_query</span>(question: <span class="cl">str</span>, top_k: <span class="cl">int</span> = <span class="num">3</span>) -> <span class="cl">str</span>:
+    <span class="str">"""Answer a question using retrieved context."""</span>
+
+    <span class="cm"># Retrieve relevant chunks</span>
+    results = collection.<span class="fn">query</span>(
+        query_texts=[question],
+        n_results=top_k
+    )
+    retrieved_docs = results[<span class="str">"documents"</span>][<span class="num">0</span>]
+
+    <span class="cm"># Build augmented prompt</span>
+    context = <span class="str">"
+
+"</span>.<span class="fn">join</span>([<span class="str">f"[Doc &#123;i+1&#125;]: &#123;doc&#125;"</span>
+                              <span class="kw">for</span> i, doc <span class="kw">in</span> <span class="fn">enumerate</span>(retrieved_docs)])
+
+    system_prompt = <span class="str">"""You are a helpful customer support assistant.
+Answer questions ONLY based on the provided context.
+If the answer isn't in the context, say "I don't have that information."
+Never make up information."""</span>
+
+    user_prompt = <span class="str">f"""Context:
+&#123;context&#125;
+
+Question: &#123;question&#125;
+
+Answer based only on the context above:"""</span>
+
+    <span class="cm"># Generate answer</span>
+    response = client.chat.completions.<span class="fn">create</span>(
+        model=<span class="str">"gpt-4o-mini"</span>,
+        messages=[
+            &#123;<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: system_prompt&#125;,
+            &#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: user_prompt&#125;,
+        ],
+        temperature=<span class="num">0.1</span>  <span class="cm"># low temp for factual answers</span>
+    )
+
+    answer = response.choices[<span class="num">0</span>].message.content
+
+    <span class="cm"># Return answer + sources for transparency</span>
+    <span class="kw">return</span> &#123;
+        <span class="str">"answer"</span>: answer,
+        <span class="str">"sources"</span>: retrieved_docs,
+    &#125;
+
+<span class="cm"># ── Step 4: Test it ──</span>
+result = <span class="fn">rag_query</span>(<span class="str">"What is your refund policy?"</span>)
+<span class="fn">print</span>(<span class="str">"Answer:"</span>, result[<span class="str">"answer"</span>])
+<span class="fn">print</span>(<span class="str">"
+Sources used:"</span>)
+<span class="kw">for</span> s <span class="kw">in</span> result[<span class="str">"sources"</span>]:
+    <span class="fn">print</span>(<span class="str">f"  • &#123;s[:60]&#125;..."</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">5</span> Advanced RAG Techniques</h2>
+<h3>Chunking Strategies</h3>
+<div class="callout warn">⚠️ <strong>Chunking is the most underrated part of RAG.</strong> Bad chunking destroys retrieval quality even with a perfect vector DB. Use semantic chunking, not fixed-size splitting.</div>
+
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">from</span> langchain.text_splitter <span class="kw">import</span> RecursiveCharacterTextSplitter
+
+<span class="cm"># Smart recursive splitter that respects document structure</span>
+splitter = <span class="cl">RecursiveCharacterTextSplitter</span>(
+    chunk_size=<span class="num">512</span>,        <span class="cm"># ~512 tokens per chunk</span>
+    chunk_overlap=<span class="num">64</span>,      <span class="cm"># overlap to preserve context across chunks</span>
+    separators=[<span class="str">"
+
+"</span>, <span class="str">"
+"</span>, <span class="str">". "</span>, <span class="str">" "</span>, <span class="str">""</span>]  <span class="cm"># try paragraph → sentence → word</span>
+)
+
+<span class="cm"># Hypothetical Document Embeddings (HyDE) — advanced technique</span>
+<span class="kw">def</span> <span class="fn">hyde_retrieve</span>(question: <span class="cl">str</span>, collection) -> <span class="cl">list</span>:
+    <span class="str">"""
+    Instead of embedding the question directly,
+    ask the LLM to generate a hypothetical answer,
+    then embed THAT. Works better for abstract queries.
+    """</span>
+    hyp_answer = client.chat.completions.<span class="fn">create</span>(
+        model=<span class="str">"gpt-4o-mini"</span>,
+        messages=[&#123;<span class="str">"role"</span>: <span class="str">"user"</span>,
+                   <span class="str">"content"</span>: <span class="str">f"Write a factual answer to: &#123;question&#125;"</span>&#125;],
+        max_tokens=<span class="num">150</span>
+    ).choices[<span class="num">0</span>].message.content
+
+    <span class="cm"># Embed the hypothetical answer (not the question)</span>
+    results = collection.<span class="fn">query</span>(query_texts=[hyp_answer], n_results=<span class="num">5</span>)
+    <span class="kw">return</span> results[<span class="str">"documents"</span>][<span class="num">0</span>]</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">6</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Using the same embedding model for indexing and querying</strong> is actually correct — but forgetting this leads to silent, hard-to-debug failures.</div>
+<div class="callout danger">❌ <strong>Not reranking results.</strong> Cosine similarity isn't perfect. Add a cross-encoder reranker (like Cohere Rerank or BGE Reranker) to improve precision.</div>
+<div class="callout danger">❌ <strong>Infinite context window fallacy.</strong> Even with 128k context, stuffing too many chunks degrades performance. Keep retrieved context under 4-8k tokens.</div>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">7</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the difference between RAG and fine-tuning. When would you choose one over the other?</li>
+  <li>What is chunk overlap and why is it important? What happens if it's too large?</li>
+  <li>How do you evaluate the quality of a RAG pipeline? What metrics would you use?</li>
+  <li>What is the "lost in the middle" problem in RAG? How do you mitigate it?</li>
+  <li>Explain HyDE (Hypothetical Document Embeddings). When does it outperform naive retrieval?</li>
+  <li>How would you build a RAG system that cites its sources?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(245,158,11,.15);color:#f59e0b">8</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-rag">
+  <li onclick="toggleTask(this)">Build a RAG system over a PDF of your choice using LangChain + ChromaDB</li>
+  <li onclick="toggleTask(this)">Compare chunking strategies: fixed-size vs recursive vs semantic — measure retrieval quality</li>
+  <li onclick="toggleTask(this)">Add a reranker to your RAG pipeline using Cohere's free API</li>
+  <li onclick="toggleTask(this)">Implement a simple RAG evaluation: use RAGAS library to measure faithfulness and answer relevancy</li>
+  <li onclick="toggleTask(this)">Build a multi-document RAG that can answer questions from 5 different sources and cite which source it used</li>
+</ul>

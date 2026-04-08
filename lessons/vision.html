@@ -1,0 +1,169 @@
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">1</span> Simple Explanation</h2>
+<p><strong>Vision Models</strong> are AI systems that understand images and video — identifying what is in them, where things are located, and what is happening. They are the foundation of computer vision, one of the most commercially successful and widely deployed areas of AI. From a security camera that flags unauthorized access, to a medical scanner that spots tumours, to the camera in your smartphone that unlocks with your face — vision models are quietly running the world around us.</p>
+<p>Modern vision models fall into two broad families. <strong>Convolutional Neural Networks (CNNs)</strong> — which you covered in the Deep Learning section — dominated computer vision from 2012 to around 2021. They process images by sliding learned filters across the input to detect increasingly complex patterns. <strong>Vision Transformers (ViTs)</strong> emerged around 2021 and now dominate state-of-the-art benchmarks: they split an image into a grid of patches, treat each patch like a token, and apply the same self-attention mechanism that powers LLMs. This unification of vision and language architectures is what enabled modern multimodal models like GPT-4V, Claude, and Gemini.</p>
+<div class="callout">💡 <strong>Key insight:</strong> The same Transformer architecture that reads text can read images — just swap word tokens for image patch tokens. This insight is what enabled a single model to understand both a photograph and a question about it simultaneously. Multimodal AI is not two separate models duct-taped together; it is one unified architecture trained on both modalities.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">2</span> Why It Matters for AI Engineers</h2>
+<p>Vision capabilities are increasingly table stakes for production AI applications. Users expect to be able to attach screenshots, photos, charts, and documents to their AI interactions. Building applications on top of vision-capable LLMs (GPT-4V, Claude, Gemini) requires understanding how images are processed, what the models can and cannot perceive, how to optimize image inputs for cost and accuracy, and when to use specialized vision models vs general multimodal LLMs.</p>
+<p>Understanding the underlying architectures — what detection models like YOLO output, what segmentation models produce, how embedding models encode visual semantics — is essential for building vision-powered pipelines: document processing, quality control, content moderation, medical imaging, and autonomous systems.</p>
+<div class="tag-row"><span class="tag">ViT</span><span class="tag">CLIP</span><span class="tag">Object Detection</span><span class="tag">Segmentation</span><span class="tag">GPT-4V</span><span class="tag">Image Embeddings</span></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">3</span> Real-World Example</h2>
+<p><strong>Tesla Autopilot and Autonomous Perception</strong></p>
+<p>Tesla's Autopilot system processes feeds from eight cameras simultaneously to build a real-time 3D understanding of the vehicle's environment. The system must detect and classify hundreds of object categories (vehicles, pedestrians, cyclists, traffic signs, lane markings) within 50ms to enable safe autonomous driving decisions. Early Tesla Autopilot used traditional CNN object detection networks. The current Hydranet architecture uses a shared ViT backbone that feeds into multiple specialized prediction heads — one for lane detection, one for object detection, one for depth estimation — all running simultaneously from a single forward pass. This multi-task approach is far more compute-efficient than running separate specialized models for each perception task.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">4</span> Step-by-Step Explanation</h2>
+<h3>Vision Transformer (ViT)</h3>
+<ol>
+  <li><strong>Patch Embedding:</strong> Split the input image (e.g. 224x224) into a grid of non-overlapping patches (e.g. 16x16 pixels each). A 224x224 image becomes 196 patches. Each patch is flattened and projected to a fixed embedding dimension (e.g. 768).</li>
+  <li><strong>Positional Encoding:</strong> Add learned position embeddings to each patch token so the model knows where each patch came from in the original image.</li>
+  <li><strong>Transformer Encoder:</strong> Pass the sequence of 196 patch tokens through standard multi-head self-attention layers — identical to a text Transformer. Each patch can attend to every other patch, capturing long-range spatial relationships.</li>
+  <li><strong>Classification Token:</strong> A special [CLS] token prepended to the patch sequence aggregates global image information and is used for final classification.</li>
+  <li><strong>Task Head:</strong> The final representation is fed into a task-specific head: a linear layer for classification, a detection head for bounding boxes, a segmentation head for pixel masks.</li>
+</ol>
+<h3>CLIP — Connecting Vision and Language</h3>
+<p>CLIP (Contrastive Language-Image Pre-training) trains a vision encoder and a text encoder together so that matching image-text pairs produce similar embeddings. Given an image and a set of text descriptions, CLIP scores which description best matches the image — without ever being trained on that specific category. This zero-shot capability is what powers multimodal search, image classification without labeled training data, and visual question answering.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+<span class="kw">from</span> transformers <span class="kw">import</span> ViTForImageClassification, ViTImageProcessor
+<span class="kw">from</span> PIL <span class="kw">import</span> Image
+<span class="kw">import</span> requests
+
+<span class="cm"># ── Vision Transformer for image classification ───────────────────────────────</span>
+processor = <span class="cl">ViTImageProcessor</span>.<span class="fn">from_pretrained</span>(<span class="str">'google/vit-base-patch16-224'</span>)
+model     = <span class="cl">ViTForImageClassification</span>.<span class="fn">from_pretrained</span>(<span class="str">'google/vit-base-patch16-224'</span>)
+
+<span class="cm"># Load a sample image</span>
+url = <span class="str">"http://images.cocodataset.org/val2017/000000039769.jpg"</span>
+image = Image.<span class="fn">open</span>(<span class="fn">requests</span>.<span class="fn">get</span>(url, stream=<span class="kw">True</span>).raw)
+
+<span class="cm"># Preprocess: resize to 224x224, normalize to ImageNet stats</span>
+inputs = <span class="fn">processor</span>(images=image, return_tensors=<span class="str">"pt"</span>)
+<span class="fn">print</span>(<span class="str">f"Input pixel values shape: &#123;inputs['pixel_values'].shape&#125;"</span>)
+<span class="cm"># -> torch.Size([1, 3, 224, 224])  (batch=1, RGB, 224x224)</span>
+
+<span class="cm"># Forward pass</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    outputs = model(**inputs)
+    logits  = outputs.logits    <span class="cm"># shape: [1, 1000]</span>
+
+predicted_class_idx = logits.<span class="fn">argmax</span>(-<span class="num">1</span>).<span class="fn">item</span>()
+<span class="fn">print</span>(<span class="str">f"Predicted class: &#123;model.config.id2label[predicted_class_idx]&#125;"</span>)
+
+<span class="cm"># ── CLIP for zero-shot image-text matching ────────────────────────────────────</span>
+<span class="kw">from</span> transformers <span class="kw">import</span> CLIPModel, CLIPProcessor
+
+clip_model     = <span class="cl">CLIPModel</span>.<span class="fn">from_pretrained</span>(<span class="str">"openai/clip-vit-base-patch32"</span>)
+clip_processor = <span class="cl">CLIPProcessor</span>.<span class="fn">from_pretrained</span>(<span class="str">"openai/clip-vit-base-patch32"</span>)
+
+<span class="cm"># Zero-shot classification — no task-specific training needed!</span>
+candidate_labels = [<span class="str">"a cat sleeping on a sofa"</span>,
+                    <span class="str">"a dog playing in the park"</span>,
+                    <span class="str">"a person cooking in a kitchen"</span>]
+
+inputs = <span class="fn">clip_processor</span>(text=candidate_labels, images=image,
+                        return_tensors=<span class="str">"pt"</span>, padding=<span class="kw">True</span>)
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    outputs = clip_model(**inputs)
+    probs   = outputs.logits_per_image.<span class="fn">softmax</span>(dim=<span class="num">1</span>)
+
+<span class="kw">for</span> label, prob <span class="kw">in</span> <span class="fn">zip</span>(candidate_labels, probs[<span class="num">0</span>]):
+    <span class="fn">print</span>(<span class="str">f"  &#123;prob:.1%&#125;  &#123;label&#125;"</span>)
+
+<span class="cm"># ── Multimodal LLM via API (GPT-4V / Claude pattern) ─────────────────────────</span>
+<span class="kw">import</span> base64
+
+<span class="kw">def</span> <span class="fn">image_to_base64</span>(path: str) -> str:
+    <span class="kw">with</span> <span class="fn">open</span>(path, <span class="str">"rb"</span>) <span class="kw">as</span> f:
+        <span class="kw">return</span> base64.<span class="fn">b64encode</span>(f.<span class="fn">read</span>()).<span class="fn">decode</span>()
+
+<span class="cm"># Message format for vision-capable LLM (OpenAI GPT-4V style)</span>
+message = &#123;
+    <span class="str">"role"</span>: <span class="str">"user"</span>,
+    <span class="str">"content"</span>: [
+        &#123;<span class="str">"type"</span>: <span class="str">"image_url"</span>,
+         <span class="str">"image_url"</span>: &#123;<span class="str">"url"</span>: <span class="str">f"data:image/jpeg;base64,&#123;image_to_base64('photo.jpg')&#125;"</span>&#125;&#125;,
+        &#123;<span class="str">"type"</span>: <span class="str">"text"</span>, <span class="str">"text"</span>: <span class="str">"What objects are in this image? List them."</span>&#125;
+    ]
+&#125;
+<span class="fn">print</span>(<span class="str">"Message payload ready for GPT-4V / Claude vision API call."</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+VISION TRANSFORMER (ViT) ARCHITECTURE
+
+  Input Image (224 x 224 x 3)
+         |
+  ┌──────▼────────────────────────────────────────────────┐
+  │  PATCH EMBEDDING                                       │
+  │  Split into 16x16 patches -> 196 patches              │
+  │  Each patch (16x16x3=768 values) -> 768-dim vector    │
+  │  + learned position embedding                         │
+  └──────┬────────────────────────────────────────────────┘
+         |
+  [CLS] [patch_1] [patch_2] ... [patch_196]   <- sequence of 197 tokens
+         |
+  ┌──────▼────────────────────────────────────────────────┐
+  │  TRANSFORMER ENCODER (12 layers)                      │
+  │  Multi-Head Self-Attention: every patch attends to    │
+  │  every other patch -- no locality bias!               │
+  │  Feed-Forward Network after each attention layer      │
+  └──────┬────────────────────────────────────────────────┘
+         |
+  [CLS token output]
+         |
+  ┌──────▼────────────────────────────────────────────────┐
+  │  TASK HEAD                                             │
+  │  Classification: Linear(768, 1000) -> ImageNet class  │
+  │  Detection: FPN head -> bounding boxes + classes      │
+  │  Segmentation: Decoder -> per-pixel mask              │
+  └───────────────────────────────────────────────────────┘
+
+CLIP — Zero-Shot Image Classification:
+
+  Image ──> Vision Encoder ──> Image Embedding (512-dim)
+                                      |
+                               Cosine Similarity
+                                      |
+  "a cat on sofa" -> Text Encoder -> Text Embedding (512-dim)
+  "a dog in park" -> Text Encoder -> Text Embedding (512-dim)
+  "a car on road" -> Text Encoder -> Text Embedding (512-dim)
+
+  The label with the HIGHEST cosine similarity wins.
+  No task-specific training needed -- works on any category!
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">7</span> Practical Use Cases</h2>
+<p><strong>Document intelligence:</strong> Vision models extract structured data from invoices, receipts, contracts, and forms — reading text, tables, and layout simultaneously. Companies like Docugami and AWS Textract use hybrid CNN+Transformer architectures that understand both visual structure and textual content.</p>
+<p><strong>Medical imaging:</strong> Specialized ViT models trained on radiology datasets detect tumours, classify lesions, and segment organs from CT, MRI, and X-ray images — augmenting radiologists and enabling scalable screening programs in under-resourced regions.</p>
+<p><strong>Content moderation at scale:</strong> Social media platforms process billions of images per day using fast CNN classifiers for initial screening and more powerful ViT models for nuanced decisions — flagging violence, nudity, spam, and misinformation before human review.</p>
+<p><strong>Multimodal search:</strong> CLIP embeddings power image-text search engines where you can search a photo library using natural language ("sunset over the ocean") and get semantically relevant results without manual tagging.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Sending full-resolution images to multimodal LLM APIs:</strong> GPT-4V and Claude resize images internally, but you still pay for the tokens used to encode them. A 4K image can consume thousands of tokens. Resize images to the minimum resolution needed for the task before sending — 512x512 or 768x768 is often sufficient for most analysis tasks.</div>
+<div class="callout warn">⚠️ <strong>Assuming vision LLMs can read all text in images:</strong> Multimodal LLMs struggle with small, stylized, or rotated text, dense tables, and handwriting. For precise OCR tasks, use a dedicated OCR model (Tesseract, AWS Textract, Google Document AI) rather than relying on a general vision LLM.</div>
+<div class="callout danger">❌ <strong>Using a general classifier when you need a detector:</strong> Classification tells you WHAT is in an image. Detection tells you WHERE it is (bounding boxes). Segmentation tells you exactly WHICH PIXELS belong to each object. Choose the right task model for the problem — a classifier cannot tell you the location of a tumour.</div>
+<div class="callout warn">⚠️ <strong>Not normalizing images to match the pretrained model's expected statistics:</strong> Every pretrained vision model expects inputs normalized to specific mean and standard deviation values. Using raw pixel values (0-255 or 0.0-1.0 without proper normalization) produces completely wrong activations from pretrained weights.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain how a Vision Transformer processes an image. How does it differ architecturally from a CNN, and what are the tradeoffs?</li>
+  <li>What is CLIP and how does it enable zero-shot image classification? What is contrastive learning and how was CLIP trained?</li>
+  <li>You need to detect all cars in a parking lot image and count them. Would you use a classifier, an object detector, or a segmentation model? Explain the difference.</li>
+  <li>How are images encoded when sent to a multimodal LLM like GPT-4V? What are the token cost implications and how do you optimize them?</li>
+  <li>What is transfer learning in the context of vision models? How do you decide what layers to freeze and what to fine-tune given a small domain-specific dataset?</li>
+  <li>What are the key limitations of current vision LLMs for document processing tasks? When would you use a specialized OCR system instead?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-vision">
+  <li onclick="toggleTask(this)">Load google/vit-base-patch16-224 from HuggingFace. Run it on 5 different images and print the top-3 predicted classes with confidence scores for each.</li>
+  <li onclick="toggleTask(this)">Use CLIP (openai/clip-vit-base-patch32) to build a zero-shot image classifier for a custom set of 10 categories. Test it on images from those categories and report accuracy.</li>
+  <li onclick="toggleTask(this)">Run YOLO (ultralytics) on a busy street photo. Parse the detection output to count how many people, cars, and bicycles are detected. Draw bounding boxes using PIL or OpenCV.</li>
+  <li onclick="toggleTask(this)">Call GPT-4V or Claude's vision API with a chart or infographic image. Ask it to extract the key data points. Compare its extraction quality against manual reading.</li>
+  <li onclick="toggleTask(this)">Fine-tune a ViT on a small custom dataset (100 images, 5 classes) using HuggingFace Trainer. Compare val accuracy after 3 epochs when fine-tuning all layers vs only the classification head.</li>
+</ul>

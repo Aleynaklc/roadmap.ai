@@ -1,0 +1,182 @@
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">1</span> Simple Explanation</h2>
+<p>An algorithm is a step-by-step procedure to solve a problem. Think of it like a recipe: given the same ingredients (inputs), following the same steps always produces the same dish (output). In computer science, we care about two things about any algorithm: <strong>correctness</strong> (does it give the right answer?) and <strong>efficiency</strong> (how fast does it run, and how much memory does it use?).</p>
+<p>Efficiency is measured using <strong>Big O notation</strong>, which describes how runtime or memory usage scales as the input size grows. An O(n²) algorithm on 1,000 items takes 1 million steps. On 1,000,000 items, it takes 1 trillion steps. Meanwhile, an O(n log n) algorithm on 1 million items takes only ~20 million steps. This difference is the entire reason we study algorithms.</p>
+<div class="callout">💡 <strong>Key insight for AI engineers:</strong> Most ML algorithms you'll use are already implemented in optimized libraries. But understanding algorithmic complexity helps you choose between approaches, debug performance issues, and understand why an operation that seems simple is actually slow at scale.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">2</span> Why It Matters for AI Engineers</h2>
+<p>Algorithms are everywhere in AI. Backpropagation is a graph traversal algorithm. Beam search is a best-first search algorithm. Nearest-neighbor search in vector databases uses approximate search algorithms like HNSW (Hierarchical Navigable Small World). BM25, used in hybrid RAG search, is a ranking algorithm. K-means clustering is an iterative assignment algorithm. If you don't understand algorithmic thinking, you'll treat these systems as magic boxes — and when they break or slow down at scale, you won't know where to look.</p>
+<div class="tag-row"><span class="tag">Sorting</span><span class="tag">Searching</span><span class="tag">Recursion</span><span class="tag">Dynamic Programming</span><span class="tag">Graph Algorithms</span><span class="tag">Big O</span></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">3</span> Real-World Example</h2>
+<p>Pinecone, Weaviate, and other vector databases use an algorithm called <strong>HNSW (Hierarchical Navigable Small World)</strong> to find the nearest embeddings to a query vector in milliseconds — even across billions of vectors. A brute-force approach (compare the query to every vector) would take O(n·d) time where d is the embedding dimension. HNSW achieves approximate nearest neighbor search in O(log n) time by building a multi-layer graph of vectors, always skipping toward the answer like "warm/cold" in a game. This is why you can run semantic search over your entire company's document archive in under 50ms.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">4</span> Step-by-Step: Core Algorithm Concepts</h2>
+<h3>Big O — Measuring Algorithm Efficiency</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code>tokens = [<span class="str">"the"</span>, <span class="str">"cat"</span>, <span class="str">"sat"</span>, <span class="str">"on"</span>, <span class="str">"mat"</span>]
+
+<span class="cm"># O(1) — Constant time. Fast no matter the size.</span>
+first_token = tokens[<span class="num">0</span>]
+
+<span class="cm"># O(n) — Linear. Doubles when input doubles.</span>
+total_chars = <span class="fn">sum</span>(<span class="fn">len</span>(t) <span class="kw">for</span> t <span class="kw">in</span> tokens)
+
+<span class="cm"># O(n²) — Quadratic. Dangerous at scale.</span>
+<span class="cm"># This is why naive self-attention is O(seq_len²)!</span>
+similarity_matrix = []
+<span class="kw">for</span> i <span class="kw">in</span> tokens:
+    row = [<span class="fn">len</span>(set(i) &amp; set(j)) <span class="kw">for</span> j <span class="kw">in</span> tokens]
+    similarity_matrix.<span class="fn">append</span>(row)
+
+<span class="cm"># O(n log n) — Efficient. Sorting, tree operations.</span>
+sorted_tokens = <span class="fn">sorted</span>(tokens)   <span class="cm"># Timsort — O(n log n)</span>
+
+<span class="cm"># O(log n) — Binary search. Used in sorted lookup tables.</span>
+<span class="kw">import</span> bisect
+idx = bisect.<span class="fn">bisect_left</span>(sorted_tokens, <span class="str">"on"</span>)
+<span class="fn">print</span>(idx, sorted_tokens[idx])   <span class="cm"># finds "on" in log n steps</span></code></pre>
+</div>
+
+<h3>Recursion & Divide and Conquer</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Merge sort — the classic divide-and-conquer algorithm</span>
+<span class="cm"># Used as the basis for understanding how neural nets split work</span>
+<span class="kw">def</span> <span class="fn">merge_sort</span>(arr: list) -> list:
+    <span class="kw">if</span> <span class="fn">len</span>(arr) &lt;= <span class="num">1</span>:
+        <span class="kw">return</span> arr              <span class="cm"># base case</span>
+
+    mid = <span class="fn">len</span>(arr) // <span class="num">2</span>
+    left = <span class="fn">merge_sort</span>(arr[:mid])   <span class="cm"># solve left half</span>
+    right = <span class="fn">merge_sort</span>(arr[mid:])  <span class="cm"># solve right half</span>
+
+    <span class="cm"># Merge two sorted halves — O(n)</span>
+    result, i, j = [], <span class="num">0</span>, <span class="num">0</span>
+    <span class="kw">while</span> i &lt; <span class="fn">len</span>(left) <span class="kw">and</span> j &lt; <span class="fn">len</span>(right):
+        <span class="kw">if</span> left[i] &lt;= right[j]:
+            result.<span class="fn">append</span>(left[i]); i += <span class="num">1</span>
+        <span class="kw">else</span>:
+            result.<span class="fn">append</span>(right[j]); j += <span class="num">1</span>
+    <span class="kw">return</span> result + left[i:] + right[j:]
+
+scores = [<span class="num">0.92</span>, <span class="num">0.45</span>, <span class="num">0.87</span>, <span class="num">0.23</span>, <span class="num">0.66</span>]
+<span class="fn">print</span>(<span class="fn">merge_sort</span>(scores))
+<span class="cm"># [0.23, 0.45, 0.66, 0.87, 0.92] — O(n log n)</span></code></pre>
+</div>
+
+<h3>Dynamic Programming — Avoiding Redundant Work</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Edit distance — measures similarity between two strings</span>
+<span class="cm"># Used in fuzzy matching, spell checkers, and diff tools</span>
+<span class="kw">def</span> <span class="fn">edit_distance</span>(s1: str, s2: str) -> int:
+    m, n = <span class="fn">len</span>(s1), <span class="fn">len</span>(s2)
+    <span class="cm"># dp[i][j] = edits needed to turn s1[:i] into s2[:j]</span>
+    dp = [[<span class="num">0</span>] * (n + <span class="num">1</span>) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(m + <span class="num">1</span>)]
+
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(m + <span class="num">1</span>): dp[i][<span class="num">0</span>] = i   <span class="cm"># delete all of s1</span>
+    <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(n + <span class="num">1</span>): dp[<span class="num">0</span>][j] = j   <span class="cm"># insert all of s2</span>
+
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, m + <span class="num">1</span>):
+        <span class="kw">for</span> j <span class="kw">in</span> <span class="fn">range</span>(<span class="num">1</span>, n + <span class="num">1</span>):
+            <span class="kw">if</span> s1[i-<span class="num">1</span>] == s2[j-<span class="num">1</span>]:
+                dp[i][j] = dp[i-<span class="num">1</span>][j-<span class="num">1</span>]     <span class="cm"># no edit needed</span>
+            <span class="kw">else</span>:
+                dp[i][j] = <span class="num">1</span> + <span class="fn">min</span>(
+                    dp[i-<span class="num">1</span>][j],    <span class="cm"># delete</span>
+                    dp[i][j-<span class="num">1</span>],    <span class="cm"># insert</span>
+                    dp[i-<span class="num">1</span>][j-<span class="num">1</span>]  <span class="cm"># replace</span>
+                )
+    <span class="kw">return</span> dp[m][n]
+
+<span class="fn">print</span>(<span class="fn">edit_distance</span>(<span class="str">"kitten"</span>, <span class="str">"sitting"</span>))  <span class="cm"># 3</span>
+<span class="fn">print</span>(<span class="fn">edit_distance</span>(<span class="str">"gpt4"</span>, <span class="str">"gpt-4"</span>))      <span class="cm"># 1</span></code></pre>
+</div>
+
+<h3>Graph Search — BFS and DFS</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code>from collections <span class="kw">import</span> deque
+
+<span class="cm"># BFS — explores level by level. Used for shortest path.</span>
+<span class="cm"># In AI agents: explore all possible next actions before going deeper</span>
+<span class="kw">def</span> <span class="fn">bfs</span>(graph: dict, start: str) -> list:
+    visited, queue, order = &#123;start&#125;, deque([start]), []
+    <span class="kw">while</span> queue:
+        node = queue.<span class="fn">popleft</span>()
+        order.<span class="fn">append</span>(node)
+        <span class="kw">for</span> neighbor <span class="kw">in</span> graph.<span class="fn">get</span>(node, []):
+            <span class="kw">if</span> neighbor <span class="kw">not</span> <span class="kw">in</span> visited:
+                visited.<span class="fn">add</span>(neighbor)
+                queue.<span class="fn">append</span>(neighbor)
+    <span class="kw">return</span> order
+
+<span class="cm"># Example: agent's plan as a dependency graph</span>
+task_graph = &#123;
+    <span class="str">"search_web"</span>: [<span class="str">"summarize"</span>],
+    <span class="str">"summarize"</span>: [<span class="str">"write_report"</span>],
+    <span class="str">"write_report"</span>: [<span class="str">"send_email"</span>],
+    <span class="str">"send_email"</span>: [],
+&#125;
+<span class="fn">print</span>(<span class="fn">bfs</span>(task_graph, <span class="str">"search_web"</span>))
+<span class="cm"># ['search_web', 'summarize', 'write_report', 'send_email']</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">5</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+BIG O COMPLEXITY — Visual Scale (n = 1,000,000 operations)
+
+  O(1)        ─────────────────────────────────────  1 op
+  O(log n)    ─────────────────────────────────────  ~20 ops
+  O(n)        ███████████████████████████████████    1,000,000 ops
+  O(n log n)  ████████████████████████████████████   ~20,000,000 ops
+  O(n²)       ████████████████████████ (don't go here at scale)
+
+WHERE ALGORITHMS APPEAR IN AI:
+  ┌────────────────────────────────────────────────────────┐
+  │  Self-Attention          O(n²)  per layer  ← the "cost"│
+  │  Flash Attention         O(n)   optimized tiling trick  │
+  │  Beam Search             O(k·n) k=beam width           │
+  │  HNSW Vector Search      O(log n) approximate NN       │
+  │  Tokenizer BPE merge     O(n log n) per training step  │
+  │  Backpropagation         O(P) P = number of params     │
+  └────────────────────────────────────────────────────────┘
+
+TWO POINTER TECHNIQUE — used in sliding window attention:
+  Input: [a, b, c, d, e, f, g]
+          ↑                        ← left pointer
+                    ↑              ← right pointer
+  Window slides right, maintaining a fixed context window
+  (This is how sliding window attention works!)
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">6</span> Practical Use Cases</h2>
+<p><strong>Topological sort for AI pipelines:</strong> When you build a LangChain or LlamaIndex pipeline with multiple steps (retrieve → rerank → summarize → respond), you're defining a directed acyclic graph. Topological sort determines the correct execution order, ensuring each step runs only after its dependencies are complete.</p>
+<p><strong>Binary search for hyperparameter tuning:</strong> When searching for the optimal learning rate between 1e-5 and 1e-1, libraries like Optuna use algorithms similar to binary search to converge on the best value in O(log n) evaluations rather than trying all values.</p>
+<p><strong>Greedy algorithms in token generation:</strong> "Greedy decoding" in LLMs means always picking the most probable next token — a greedy algorithm. Beam search improves on this by keeping the top-k candidates at each step, exploring more of the solution space without full brute-force search.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">7</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Mistake 1:</strong> Nesting loops over large sequences. Two nested loops over a 10,000-token document = 100 million iterations. Always ask: can I vectorize this with NumPy instead?</div>
+<div class="callout danger">❌ <strong>Mistake 2:</strong> Sorting when you only need the top-K items. <code>sorted(scores)[-10:]</code> sorts all n items (O(n log n)). Use <code>heapq.nlargest(10, scores)</code> instead — O(n log k), much faster when k ≪ n.</div>
+<div class="callout danger">❌ <strong>Mistake 3:</strong> Ignoring early-exit conditions in search. If you're checking whether a document contains any of 1,000 keywords, stop as soon as you find the first match — don't check all 1,000.</div>
+<div class="callout danger">❌ <strong>Mistake 4:</strong> Recursion without memoization on overlapping subproblems. Naive recursive Fibonacci is O(2ⁿ). With a cache (<code>@functools.lru_cache</code>), it's O(n). This same principle underlies dynamic programming in sequence alignment.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">8</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Why is self-attention O(n²) in sequence length? How does Flash Attention reduce this and what's the trade-off?</li>
+  <li>Explain how beam search works in text generation. What is the beam width and how does it affect output quality vs speed?</li>
+  <li>What is the difference between BFS and DFS? Give an AI-specific use case for each.</li>
+  <li>A vector database needs to find the 10 nearest embeddings out of 100 million vectors in under 10ms. What kind of algorithm makes this possible?</li>
+  <li>You have a list of 1 million document similarity scores and need the top 100. What is the most efficient approach and what is its time complexity?</li>
+  <li>Explain dynamic programming in your own words. Where does memoization appear in AI inference systems?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">9</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-algorithms">
+  <li onclick="toggleTask(this)">Implement binary search from scratch and use it to look up token IDs in a sorted vocabulary list — compare its speed to linear search with timeit</li>
+  <li onclick="toggleTask(this)">Write a memoized recursive function to compute the edit distance between two strings, then compare it to the DP table version</li>
+  <li onclick="toggleTask(this)">Implement a topological sort of a simple 5-step AI pipeline (represented as a dependency graph) using DFS</li>
+  <li onclick="toggleTask(this)">Benchmark heapq.nlargest(100, scores) vs sorted(scores)[-100:] on a list of 1 million random floats</li>
+  <li onclick="toggleTask(this)">Implement greedy decoding and top-k sampling from a probability distribution (like a language model output) without using any ML libraries</li>
+</ul>

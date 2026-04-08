@@ -1,0 +1,155 @@
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">1</span> Simple Explanation</h2>
+<p><strong>Speech to Text (STT)</strong> — also called Automatic Speech Recognition (ASR) — converts spoken audio into written text. When you dictate a message, talk to a voice assistant, or see auto-generated captions on a video, STT is running underneath. For AI engineers, it is the critical first step in any voice-enabled application: it converts the human voice into a format that language models can reason about.</p>
+<p>The current gold standard is OpenAI's <strong>Whisper</strong>, a Transformer-based model trained on 680,000 hours of multilingual audio. It accepts raw audio, processes it as a mel spectrogram — a visual representation of sound frequencies over time — and outputs a transcript including punctuation, timestamps, and automatic language detection.</p>
+<p>The architecture works in two stages. First, an audio encoder (CNN + Transformer) converts the mel spectrogram into a rich sequence of audio features. Then, a text decoder auto-regressively generates the transcript token by token — exactly like GPT generating text, but conditioned on audio features instead of previous text tokens.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Whisper is a multitask model. The same model can transcribe audio in 99 languages, translate non-English audio directly to English, and identify which language is being spoken — all without retraining. This is achieved by prepending special task tokens to the decoder at inference time.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">2</span> Why It Matters for AI Engineers</h2>
+<p>Voice interfaces are the fastest-growing input modality for AI. Building voice assistants, meeting transcription services, call center analytics, and real-time captioning all require robust STT as the first pipeline stage. Whisper's Apache 2.0 open-source license means you can run it privately on-premise — critical for healthcare, legal, and financial applications where audio data cannot leave your infrastructure. STT is the bridge that connects spoken language to the LLMs that power reasoning and action.</p>
+<div class="tag-row"><span class="tag">Whisper</span><span class="tag">ASR</span><span class="tag">Mel Spectrogram</span><span class="tag">Word Timestamps</span><span class="tag">Diarization</span><span class="tag">faster-whisper</span></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">3</span> Real-World Example</h2>
+<p><strong>Otter.ai Meeting Intelligence</strong></p>
+<p>Otter.ai captures audio from Zoom, Google Meet, and Teams meetings, streams it through an ASR model, performs speaker diarization (labeling who said what), and generates a structured transcript with timestamps. An LLM then produces meeting summaries, action items, and follow-up tasks automatically.</p>
+<p>The key engineering challenge is latency: live transcription users expect to see their words within 300-500ms of speaking. This requires streaming ASR — processing audio in overlapping 30-second chunks and emitting partial transcripts as they arrive — rather than waiting for the full recording. Otter.ai processes over 1 billion minutes of audio per year across 100+ countries, making multilingual accuracy and real-time performance existential engineering requirements.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">4</span> Step-by-Step: How Whisper Works</h2>
+<ol>
+  <li><strong>Audio Preprocessing:</strong> Raw audio is resampled to 16kHz mono. A 30-second window is extracted. Shorter clips are padded with silence.</li>
+  <li><strong>Mel Spectrogram:</strong> The waveform is converted to a 2D spectrogram — x-axis is time, y-axis is frequency (80 mel bands). Brightness = loudness. This is the model's "image" of the audio.</li>
+  <li><strong>Audio Encoder:</strong> Two CNN layers process the spectrogram, then Transformer encoder layers create 1500 audio feature vectors (512 dims each).</li>
+  <li><strong>Text Decoder:</strong> A Transformer decoder generates tokens auto-regressively. Cross-attention to the encoder features guides each token toward the correct word.</li>
+  <li><strong>Timestamps:</strong> Word-level timestamps are extracted by analyzing decoder attention weights — identifying which audio frames each generated word attended to most.</li>
+</ol>
+<p><strong>Speaker Diarization:</strong> Whisper alone doesn't label who said what — it just transcribes. The pyannote.audio library handles diarization by clustering audio segments by voice characteristics. Standard pipeline: Whisper transcribes → pyannote diarizes → timestamps aligned to assign each sentence to a speaker label.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># pip install faster-whisper openai</span>
+<span class="cm"># faster-whisper = 4x faster, 4x less VRAM, same accuracy as original</span>
+<span class="kw">from</span> faster_whisper <span class="kw">import</span> WhisperModel
+
+<span class="cm"># Model sizes: tiny/base/small/medium/large-v3</span>
+<span class="cm"># tiny: runs on CPU in real-time   large-v3: GPU needed for speed</span>
+model = <span class="cl">WhisperModel</span>(<span class="str">"base"</span>, device=<span class="str">"cpu"</span>, compute_type=<span class="str">"int8"</span>)
+
+<span class="cm"># Basic transcription with timestamps</span>
+segments, info = model.<span class="fn">transcribe</span>(<span class="str">"meeting.mp3"</span>, beam_size=<span class="num">5</span>)
+<span class="fn">print</span>(<span class="str">f"Language: {info.language} ({info.language_probability:.0%} confident)"</span>)
+
+full_text = []
+<span class="kw">for</span> seg <span class="kw">in</span> segments:
+    <span class="fn">print</span>(<span class="str">f"[{seg.start:.1f}s → {seg.end:.1f}s] {seg.text.strip()}"</span>)
+    full_text.<span class="fn">append</span>(seg.text)
+transcript = <span class="str">" "</span>.<span class="fn">join</span>(full_text)
+
+<span class="cm"># Word-level timestamps (great for subtitle generation)</span>
+segments, _ = model.<span class="fn">transcribe</span>(<span class="str">"audio.mp3"</span>, word_timestamps=<span class="kw">True</span>)
+<span class="kw">for</span> seg <span class="kw">in</span> segments:
+    <span class="kw">for</span> word <span class="kw">in</span> seg.words:
+        <span class="fn">print</span>(<span class="str">f"  {word.word!r:20s}  {word.start:.2f}s – {word.end:.2f}s  (conf={word.probability:.2f})"</span>)
+
+<span class="cm"># OpenAI Whisper API (cloud — no GPU required on your end)</span>
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+api_client = <span class="cl">OpenAI</span>()
+
+<span class="kw">with</span> <span class="fn">open</span>(<span class="str">"audio.mp3"</span>, <span class="str">"rb"</span>) <span class="kw">as</span> f:
+    result = api_client.audio.transcriptions.<span class="fn">create</span>(
+        model=<span class="str">"whisper-1"</span>,
+        file=f,
+        response_format=<span class="str">"verbose_json"</span>,
+        timestamp_granularities=[<span class="str">"word"</span>],
+        language=<span class="str">"en"</span>  <span class="cm"># omit for auto-detect</span>
+    )
+<span class="fn">print</span>(result.text)
+
+<span class="cm"># Full pipeline: audio → transcript → LLM summary</span>
+<span class="kw">def</span> <span class="fn">transcribe_and_summarize</span>(audio_path: str) -> dict:
+    segs, info = model.<span class="fn">transcribe</span>(audio_path)
+    transcript = <span class="str">" "</span>.<span class="fn">join</span>(s.text <span class="kw">for</span> s <span class="kw">in</span> segs)
+
+    response = api_client.chat.completions.<span class="fn">create</span>(
+        model=<span class="str">"gpt-4o-mini"</span>,
+        messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>,
+            <span class="str">"content"</span>: <span class="str">f"Summarize this transcript. Extract action items.
+
+{transcript}"</span>}]
+    )
+    <span class="kw">return</span> {
+        <span class="str">"language"</span>: info.language,
+        <span class="str">"transcript"</span>: transcript,
+        <span class="str">"summary"</span>: response.choices[<span class="num">0</span>].message.content
+    }
+
+result = <span class="fn">transcribe_and_summarize</span>(<span class="str">"team_meeting.mp3"</span>)
+<span class="fn">print</span>(result[<span class="str">"summary"</span>])</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+WHISPER ARCHITECTURE END-TO-END
+
+  Raw Audio (.mp3 / .wav / .m4a)
+        │
+        ▼  Resample to 16kHz mono
+  Waveform: [0.002, -0.001, 0.008 ...] (millions of float samples)
+        │
+        ▼  Short-Time Fourier Transform → Log Mel Spectrogram
+  ┌─────────────────────────────────────┐
+  │  High │░░░░██████████░░░░░░██████░░│ ← frequency bands (80)
+  │  freq │░░░████████████░░░░████████░│
+  │  Low  │░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+  └─────────────────────────────────────┘
+             time →  (3000 frames for 30s clip)
+        │
+        ▼  CNN + Transformer Encoder
+  1500 audio feature vectors (512-dim each)
+        │
+        ▼  Transformer Decoder (cross-attends to audio features)
+  [&lt;|en|&gt;][&lt;|transcribe|&gt;] "The" "meeting" "starts" "at" "nine" "AM"
+        │
+        ▼
+  "The meeting starts at 9 AM."  +  word timestamps
+
+WHISPER MODEL SIZE vs PERFORMANCE:
+  ┌────────────┬──────────┬────────────┬──────────────────────┐
+  │  Model     │ Params   │  WER (↓)   │  Speed on CPU        │
+  ├────────────┼──────────┼────────────┼──────────────────────┤
+  │  tiny      │   39M    │   ~5.7%    │  32x real-time       │
+  │  base      │   74M    │   ~4.2%    │  16x real-time       │
+  │  medium    │  307M    │   ~2.9%    │   4x real-time       │
+  │  large-v3  │ 1550M    │   ~2.0%    │  0.5x (GPU needed)   │
+  └────────────┴──────────┴────────────┴──────────────────────┘
+  WER = Word Error Rate. Lower is better. 32x RT = 1hr audio in ~2 min.
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">7</span> Practical Use Cases</h2>
+<p><strong>Meeting intelligence:</strong> Record meetings → Whisper transcribes → pyannote diarizes speaker turns → LLM generates summary, action items, and decisions. This is the exact pipeline behind Otter.ai, Fireflies.ai, and Notion AI — multi-million dollar products built on Whisper at their core.</p>
+<p><strong>Voice-enabled RAG chatbot:</strong> Record user voice query → Whisper transcribes to text → RAG retrieves relevant documents → LLM generates answer → TTS speaks it back. Fully hands-free AI assistant in under 200 lines of Python.</p>
+<p><strong>Podcast and video indexing:</strong> Transcribe all content → chunk transcripts → embed and index in a vector database → enable semantic search across thousands of hours of audio content with natural language queries.</p>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Not resampling audio before transcribing:</strong> Whisper expects 16kHz mono. Passing 44.1kHz stereo audio causes subtle timing and accuracy errors. Always resample first: <code>ffmpeg -i input.mp4 -ar 16000 -ac 1 output.wav</code></div>
+<div class="callout danger">❌ <strong>Using large-v3 for real-time transcription on CPU:</strong> large-v3 runs at 0.5× real-time on CPU — 1 hour of audio takes 2 hours to transcribe. For live use, run <code>base</code> on CPU or <code>medium</code> on GPU. Match model size to latency constraints, not just accuracy goals.</div>
+<div class="callout warn">⚠️ <strong>Whisper hallucination on silence:</strong> Whisper can generate plausible text from ambient noise or silence. Always check segment <code>avg_logprob</code> confidence scores. Filter out segments below a threshold (e.g., &lt; -1.0) before passing transcripts to downstream LLMs.</div>
+<div class="callout danger">❌ <strong>Naive 30-second chunk boundaries:</strong> Splitting audio at exactly 30-second boundaries cuts words mid-sentence. Use overlapping chunks and the <code>condition_on_previous_text=True</code> option to maintain coherence across chunk boundaries.</div>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain how Whisper converts raw audio into text. What is a mel spectrogram and why is it used instead of the raw waveform?</li>
+  <li>What is speaker diarization and why is it a separate problem from transcription? How would you combine Whisper with diarization in a production pipeline?</li>
+  <li>You need to transcribe 10,000 hours of call center recordings overnight. What model, hardware, and infrastructure choices would you make?</li>
+  <li>How would you build a real-time live transcription system? What are the key engineering challenges around chunking and latency?</li>
+  <li>Whisper sometimes hallucinates text from silence. How do you detect and filter hallucinated segments in production?</li>
+  <li>What is the difference between transcription and translation in Whisper? How does the same model handle both tasks without retraining?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(6,182,212,.15);color:#06b6d4">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-stt">
+  <li onclick="toggleTask(this)">Download a 5-minute podcast clip. Transcribe with faster-whisper using tiny, base, and medium models. Compare accuracy on 5 specific sentences and measure transcription time — find the accuracy/speed sweet spot.</li>
+  <li onclick="toggleTask(this)">Build an audio Q&amp;A system: transcribe a lecture recording, chunk the transcript by sentence, embed in ChromaDB, then answer 5 questions using semantic retrieval + GPT-4o-mini synthesis.</li>
+  <li onclick="toggleTask(this)">Test multilingual capability: transcribe short clips in 5 languages without specifying the language. Verify auto-detection accuracy and compare transcription quality to a native speaker review.</li>
+  <li onclick="toggleTask(this)">Detect hallucinations: create a 30-second file of pure silence or ambient noise. Transcribe it and inspect the output. Implement a filter using avg_logprob to suppress low-confidence segments.</li>
+  <li onclick="toggleTask(this)">Build a meeting summarizer: record or use any 3-minute conversation, transcribe with faster-whisper, then prompt GPT-4o-mini to extract: summary, key decisions, action items, and unresolved questions. Format the output as Markdown.</li>
+</ul>

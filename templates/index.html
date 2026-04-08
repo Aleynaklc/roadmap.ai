@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Engineer Roadmap — Python Backend Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}">
+</head>
+<body>
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="dot"></div>
+    AIEngineer.dev
+  </a>
+  <div class="nav-actions">
+    <div class="nav-search" id="nav-search-trigger">
+      <span>🔍</span>
+      <input id="nav-search-input" placeholder="Search topics…" readonly>
+      <span style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 6px">⌘K</span>
+    </div>
+    <button class="btn-sm btn-outline" type="button">Python Backend</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-badge">✦ FastAPI Powered</div>
+    <h1>Become an <span>AI Engineer</span><br>from Zero to Hero</h1>
+    <p class="hero-sub">A Python-backend clone of the roadmap. Lesson content is served through FastAPI endpoints while preserving the original UI and content.</p>
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-n">8</div><div class="stat-l">Learning Stages</div></div>
+      <div class="stat"><div class="stat-n">35+</div><div class="stat-l">Deep Topics</div></div>
+      <div class="stat"><div class="stat-n">API</div><div class="stat-l">Lesson Loading</div></div>
+      <div class="stat"><div class="stat-n">Python</div><div class="stat-l">Backend</div></div>
+    </div>
+    <div class="hero-cta">
+      <a href="#roadmap" class="btn-lg primary">Start Learning →</a>
+      <a href="#" class="btn-lg secondary" id="curriculum-trigger">View Curriculum</a>
+    </div>
+  </div>
+</section>
+
+<section class="roadmap-section" id="roadmap">
+  <div class="section-header">
+    <div class="section-title">📍 AI Engineer Roadmap</div>
+    <div class="progress-bar-wrap">
+      <span id="progress-text">0 / 35 completed</span>
+      <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+      <span id="progress-pct" style="color:var(--accent);font-family:'DM Mono',monospace;font-size:.78rem">0%</span>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all" type="button">All Topics</button>
+    <button class="filter-btn" data-filter="not-started" type="button">Not Started</button>
+    <button class="filter-btn" data-filter="completed" type="button">Completed</button>
+  </div>
+
+  <div class="roadmap" id="roadmap-container"></div>
+</section>
+
+<div class="modal-overlay" id="search-modal">
+  <div class="search-modal">
+    <div class="search-input-wrap">
+      <span>🔍</span>
+      <input id="search-input" placeholder="Search any AI topic…" autofocus>
+      <span id="search-close" style="font-size:.8rem;color:var(--muted);cursor:pointer">ESC</span>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+</div>
+
+<div class="lesson-overlay" id="lesson-overlay"></div>
+<div class="lesson-panel" id="lesson-panel">
+  <div class="lesson-header">
+    <div class="lesson-header-left">
+      <span class="lesson-stage-badge" id="lesson-stage-badge">Stage 1</span>
+      <span class="lesson-title-h" id="lesson-title-h">Topic Title</span>
+    </div>
+    <div class="lesson-actions">
+      <button class="icon-btn" id="bookmark-btn" title="Bookmark" type="button">🔖</button>
+      <button class="icon-btn" id="lesson-close-btn" title="Close" type="button">✕</button>
+    </div>
+  </div>
+  <div class="lesson-body" id="lesson-body"></div>
+  <div class="lesson-footer">
+    <button class="complete-btn" id="complete-btn" type="button">✓ Mark as Complete</button>
+  </div>
+</div>
+
+<div class="tutor-bubble">
+  <div class="tutor-chat" id="tutor-chat">
+    <div class="tutor-header">
+      <div class="tutor-avatar">🤖</div>
+      <div>
+        <div class="tutor-name">Aria — AI Tutor</div>
+        <div class="tutor-status">● Python Backend</div>
+      </div>
+    </div>
+    <div class="tutor-messages" id="tutor-messages">
+      <div class="tutor-msg ai">Hi! I’m served by FastAPI now. Open a lesson and ask anything about it.</div>
+    </div>
+    <div class="tutor-input-area">
+      <input class="tutor-input" id="tutor-input" placeholder="Ask about this topic…">
+      <button class="tutor-send" id="tutor-send" type="button">↑</button>
+    </div>
+  </div>
+  <button class="tutor-btn" id="tutor-toggle" title="AI Tutor" type="button">🤖</button>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+</html>

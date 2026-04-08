@@ -1,0 +1,175 @@
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">1</span> Simple Explanation</h2>
+<p>Calculus is the mathematics of change. It has two main branches: <strong>differentiation</strong> (measuring how fast something changes — the derivative) and <strong>integration</strong> (measuring accumulated change over a range). For AI engineers, differentiation is by far the more important one. The derivative of a function tells you: if I increase this input slightly, how much does the output change?</p>
+<p>This is exactly what a neural network needs during training. The network makes a prediction, measures how wrong it is (the loss), and then asks: "if I nudge each of my millions of parameters slightly, which direction would reduce my loss?" Calculus — specifically the chain rule applied via backpropagation — answers that question for every parameter simultaneously.</p>
+<div class="callout">💡 <strong>Key insight:</strong> You don't need to manually compute derivatives in practice — PyTorch does it automatically via autograd. But understanding what a derivative <em>means</em> and how the chain rule works will make you a dramatically better debugging partner when your model's gradients explode, vanish, or produce NaN.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">2</span> Why It Matters for AI Engineers</h2>
+<p>Gradient descent — the algorithm that trains every neural network — is pure calculus. The learning rate is a step size along the gradient. Vanishing gradients (a common training failure) happen when derivatives chain-multiply to near-zero through many layers. Exploding gradients happen when they chain-multiply to huge values. Activation functions like ReLU, sigmoid, and GELU are chosen partly for their derivative properties. Understanding these concepts lets you diagnose training failures, choose appropriate activation functions, and understand why techniques like batch normalization and residual connections were invented.</p>
+<div class="tag-row"><span class="tag">Derivatives</span><span class="tag">Chain Rule</span><span class="tag">Gradient Descent</span><span class="tag">Partial Derivatives</span><span class="tag">Learning Rate</span><span class="tag">Autograd</span></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">3</span> Real-World Example</h2>
+<p>When Meta trains Llama 3, they use a variant of gradient descent called AdamW across hundreds of billions of parameters on thousands of GPUs. Every training step computes the gradient — a vector of partial derivatives — of the loss with respect to each parameter. AdamW then adjusts the learning rate adaptively per parameter using a running estimate of the gradient's mean and variance (first and second moments from calculus). The learning rate schedule — how the step size changes over training — is itself a function designed using calculus intuitions about convergence. Without calculus, none of modern deep learning training makes sense.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">4</span> Step-by-Step: Core Concepts</h2>
+<h3>Derivatives — Measuring the Rate of Change</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Numerical derivative — approximate using finite differences</span>
+<span class="cm"># f'(x) ≈ (f(x+h) - f(x-h)) / (2h)</span>
+<span class="kw">def</span> <span class="fn">numerical_derivative</span>(f, x: float, h: float = <span class="num">1e-5</span>) -> float:
+    <span class="kw">return</span> (f(x + h) - f(x - h)) / (<span class="num">2</span> * h)
+
+<span class="cm"># Loss function example: L(w) = (w - 3)²</span>
+<span class="cm"># Minimum is at w=3, where loss=0</span>
+loss = <span class="kw">lambda</span> w: (w - <span class="num">3</span>) ** <span class="num">2</span>
+
+<span class="kw">for</span> w <span class="kw">in</span> [<span class="num">0.0</span>, <span class="num">1.5</span>, <span class="num">3.0</span>, <span class="num">5.0</span>]:
+    grad = <span class="fn">numerical_derivative</span>(loss, w)
+    <span class="fn">print</span>(<span class="str">f"w=&#123;w:.1f&#125;  loss=&#123;loss(w):.2f&#125;  gradient=&#123;grad:.2f&#125;"</span>)
+
+<span class="cm"># w=0.0  loss=9.00  gradient=-6.00  ← go right (positive w)</span>
+<span class="cm"># w=1.5  loss=2.25  gradient=-3.00  ← still go right</span>
+<span class="cm"># w=3.0  loss=0.00  gradient= 0.00  ← at minimum! stop here</span>
+<span class="cm"># w=5.0  loss=4.00  gradient= 4.00  ← go left (gradient is positive)</span></code></pre>
+</div>
+
+<h3>Gradient Descent — Training in Pure Python</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Gradient descent: walk downhill on the loss surface</span>
+<span class="cm"># New weight = old weight - learning_rate * gradient</span>
+<span class="kw">def</span> <span class="fn">gradient_descent</span>(start_w: float, lr: float = <span class="num">0.1</span>, steps: int = <span class="num">20</span>):
+    w = start_w
+    <span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(steps):
+        loss_val = (w - <span class="num">3</span>) ** <span class="num">2</span>
+        gradient = <span class="num">2</span> * (w - <span class="num">3</span>)       <span class="cm"># analytical: d/dw (w-3)² = 2(w-3)</span>
+        w = w - lr * gradient          <span class="cm"># update step</span>
+        <span class="kw">if</span> step % <span class="num">5</span> == <span class="num">0</span>:
+            <span class="fn">print</span>(<span class="str">f"Step &#123;step:2d&#125;: w=&#123;w:.4f&#125;  loss=&#123;loss_val:.4f&#125;  grad=&#123;gradient:.4f&#125;"</span>)
+    <span class="kw">return</span> w
+
+final_w = <span class="fn">gradient_descent</span>(start_w=<span class="num">0.0</span>, lr=<span class="num">0.1</span>)
+<span class="fn">print</span>(<span class="str">f"
+Converged to w=&#123;final_w:.4f&#125; (true minimum: 3.0)"</span>)
+<span class="cm"># Step  0: w=0.6000  loss=9.0000  grad=-6.0000</span>
+<span class="cm"># Step  5: w=2.7433  loss=0.4423  grad=-0.4719</span>
+<span class="cm"># Step 10: w=2.9644  loss=0.1286  grad=-0.0711</span>
+<span class="cm"># Converged to w=2.9994 (true minimum: 3.0)</span></code></pre>
+</div>
+
+<h3>The Chain Rule — How Backpropagation Works</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> torch
+
+<span class="cm"># PyTorch autograd — automatic differentiation via the chain rule</span>
+<span class="cm"># This is what happens inside every model.backward() call</span>
+
+<span class="cm"># Simple computation graph: loss = ((x*w) - y)²</span>
+x = torch.<span class="fn">tensor</span>([<span class="num">2.0</span>])              <span class="cm"># input</span>
+w = torch.<span class="fn">tensor</span>([<span class="num">0.5</span>], requires_grad=<span class="kw">True</span>)  <span class="cm"># parameter to learn</span>
+y = torch.<span class="fn">tensor</span>([<span class="num">3.0</span>])              <span class="cm"># target</span>
+
+pred = x * w                          <span class="cm"># forward: 2.0 * 0.5 = 1.0</span>
+loss = (pred - y) ** <span class="num">2</span>              <span class="cm"># loss: (1.0 - 3.0)² = 4.0</span>
+
+loss.<span class="fn">backward</span>()                       <span class="cm"># compute gradients via chain rule</span>
+
+<span class="fn">print</span>(<span class="str">f"Prediction: &#123;pred.item():.2f&#125;"</span>)   <span class="cm"># 1.00</span>
+<span class="fn">print</span>(<span class="str">f"Loss: &#123;loss.item():.2f&#125;"</span>)         <span class="cm"># 4.00</span>
+<span class="fn">print</span>(<span class="str">f"dLoss/dw: &#123;w.grad.item():.2f&#125;"</span>)   <span class="cm"># -8.00</span>
+<span class="cm"># Chain rule: dL/dw = dL/dpred * dpred/dw</span>
+<span class="cm">#                   = 2*(pred-y) * x</span>
+<span class="cm">#                   = 2*(1-3) * 2 = -8.0  ✓</span>
+
+<span class="cm"># Update weight using gradient</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    w -= <span class="num">0.1</span> * w.grad   <span class="cm"># w becomes 0.5 - 0.1*(-8) = 1.3 → closer to 1.5</span></code></pre>
+</div>
+
+<h3>Activation Functions and Their Derivatives</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># ReLU and its derivative — the most used activation in deep nets</span>
+relu = <span class="kw">lambda</span> x: np.<span class="fn">maximum</span>(<span class="num">0</span>, x)
+relu_derivative = <span class="kw">lambda</span> x: (x > <span class="num">0</span>).<span class="fn">astype</span>(float)   <span class="cm"># 1 if x>0 else 0</span>
+
+<span class="cm"># Sigmoid and its derivative — used in binary classification output</span>
+sigmoid = <span class="kw">lambda</span> x: <span class="num">1</span> / (<span class="num">1</span> + np.<span class="fn">exp</span>(-x))
+sigmoid_derivative = <span class="kw">lambda</span> x: sigmoid(x) * (<span class="num">1</span> - sigmoid(x))
+
+x = np.<span class="fn">array</span>([<span class="num">-2.0</span>, <span class="num">-1.0</span>, <span class="num">0.0</span>, <span class="num">1.0</span>, <span class="num">2.0</span>])
+
+<span class="fn">print</span>(<span class="str">"ReLU derivative:"</span>, <span class="fn">relu_derivative</span>(x))
+<span class="cm"># [0. 0. 0. 1. 1.]  ← zero gradient for negative inputs = "dying ReLU" problem</span>
+
+<span class="fn">print</span>(<span class="str">"Sigmoid derivative:"</span>, np.<span class="fn">round</span>(<span class="fn">sigmoid_derivative</span>(x), <span class="num">3</span>))
+<span class="cm"># [0.105 0.197 0.250 0.197 0.105] ← small derivatives → vanishing gradients!</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">5</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+GRADIENT DESCENT — Walking Downhill on the Loss Surface
+
+  Loss
+    │
+  9 ┤ ●  ← start (w=0, loss=9)
+    │    4 ┤       │      1 ┤        ● ← after 10 steps
+    │       /
+  0 ┤       ● ← minimum (w=3, loss=0)
+    └───────────────────────────→  w
+    0   1   2   3   4   5
+
+  Each step: w_new = w_old - lr × gradient
+  Gradient points UPHILL, so we subtract it to go downhill.
+
+CHAIN RULE IN A 3-LAYER NETWORK:
+
+  Input → [Layer1] → [Layer2] → [Layer3] → Loss
+
+  dLoss/dW1 = dLoss/dL3 × dL3/dL2 × dL2/dL1 × dL1/dW1
+                          ↑ chain rule multiplies each local gradient
+
+  VANISHING GRADIENTS: if each local gradient < 1,
+  multiplying many together → 0. Deeper layers learn nothing.
+
+  EXPLODING GRADIENTS: if each local gradient > 1,
+  multiplying many together → ∞. Training diverges.
+  Fix: gradient clipping, residual connections, normalization.
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">6</span> Practical Use Cases</h2>
+<p><strong>Learning rate scheduling:</strong> Cosine annealing and warmup schedules — used in training every major LLM — are functions that modulate the learning rate over time. Understanding derivatives helps you reason about convergence speed and why warm restarts help escape local minima.</p>
+<p><strong>Gradient clipping:</strong> When training LLMs, gradients are clipped to a maximum norm (e.g., 1.0) to prevent exploding gradients. This is a direct application of understanding that the gradient is a vector whose magnitude can grow uncontrollably in deep networks.</p>
+<p><strong>Custom loss functions:</strong> When standard cross-entropy doesn't fit your problem (e.g., you want to penalize false negatives more than false positives), you write a custom loss. It must be differentiable — i.e., have computable gradients — everywhere in the domain for backpropagation to work.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">7</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Mistake 1:</strong> Setting the learning rate too high. The gradient tells you the direction to move, but not how far. A learning rate that's too large causes the optimizer to overshoot the minimum and diverge. Always start with 1e-4 or 3e-4 for transformers.</div>
+<div class="callout danger">❌ <strong>Mistake 2:</strong> Using sigmoid activations in deep networks. The sigmoid derivative maxes out at 0.25, so gradients shrink by at least 75% per layer. After 10 layers, the gradient reaching the first layer is near zero. Use ReLU or GELU instead.</div>
+<div class="callout danger">❌ <strong>Mistake 3:</strong> Forgetting to zero gradients between batches. In PyTorch, gradients accumulate by default. If you don't call <code>optimizer.zero_grad()</code> before each backward pass, your gradients are from multiple batches mixed together — a subtle, hard-to-detect bug.</div>
+<div class="callout danger">❌ <strong>Mistake 4:</strong> Creating non-differentiable operations in custom layers. Operations like <code>if x > 0</code> on tensors or rounding are not differentiable. PyTorch won't error — it'll silently compute a zero or undefined gradient, causing the layer to not learn.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">8</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain gradient descent in plain English. What does the gradient represent and why do we subtract it?</li>
+  <li>What is the vanishing gradient problem? Which activation functions cause it and how do modern architectures solve it?</li>
+  <li>Walk me through the chain rule. How does PyTorch use it to compute gradients in a 5-layer network?</li>
+  <li>Why is ReLU preferred over sigmoid for hidden layers? What is the "dying ReLU" problem and how do you fix it?</li>
+  <li>What is the difference between a gradient and a derivative? What is a partial derivative?</li>
+  <li>What does the learning rate control mathematically? What happens when it's too high vs. too low?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">9</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-calc">
+  <li onclick="toggleTask(this)">Implement gradient descent from scratch to minimize f(w) = (w-5)² starting from w=0, and plot the loss curve over 50 steps</li>
+  <li onclick="toggleTask(this)">Use PyTorch autograd to compute the gradient of a 3-operation computation graph and verify it manually with the chain rule on paper</li>
+  <li onclick="toggleTask(this)">Train a single-neuron linear regression model using only NumPy (no frameworks) — implement forward pass, loss, gradient, and weight update manually</li>
+  <li onclick="toggleTask(this)">Compare ReLU, sigmoid, and tanh activation functions by plotting both the function and its derivative from x=-5 to x=5 — observe where gradients vanish</li>
+  <li onclick="toggleTask(this)">Reproduce the vanishing gradient problem: build a 10-layer network with sigmoid activations and print the gradient magnitude at each layer during one backward pass</li>
+</ul>

@@ -1,0 +1,189 @@
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">1</span> Simple Explanation</h2>
+<p><strong>Memory Systems</strong> give AI agents the ability to remember — across turns in a conversation, across sessions, and even across entirely different users. By default, every LLM call is stateless: the model receives your prompt, generates a response, and immediately forgets everything. The next call starts from a blank slate. Memory systems are the engineering layer that makes AI feel coherent, personalized, and genuinely useful over time.</p>
+<p>Human memory works in layers: you have working memory for what you're thinking about right now, short-term memory for what happened today, and long-term memory for facts and experiences accumulated over years. AI memory architectures mirror this structure. <strong>In-context memory</strong> is the conversation history you pass in the prompt window — fast but limited to the context length. <strong>External memory</strong> is a database (vector store, key-value store, SQL) the agent queries when needed — unlimited but requires retrieval. <strong>Parametric memory</strong> is knowledge baked into the model weights during training — always available but frozen until the next fine-tune.</p>
+<div class="callout">💡 <strong>Key insight:</strong> The context window is not memory — it is working memory. Everything in the context window costs tokens on every call. A 100-turn conversation at 200 tokens per turn costs 20,000 tokens on call 101. Real memory systems compress, summarize, and selectively retrieve information so the model always has the right context without paying for the full history every time.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">2</span> Why It Matters for AI Engineers</h2>
+<p>Memory is what separates a demo chatbot from a production AI application. Users expect the system to remember their name, their preferences, what was discussed last week, and the decisions made in previous sessions. Without a properly engineered memory system, every conversation starts over from zero — frustrating for users and limiting for complex multi-step tasks.</p>
+<p>Memory systems are also critical for AI agents running long autonomous tasks. An agent researching a topic, writing a report, and booking travel across dozens of tool calls cannot fit all intermediate results in a single context window. It needs to write results to external memory and retrieve them later. Designing efficient, accurate, and cost-effective memory architectures is one of the most important applied AI engineering skills of the current era.</p>
+<div class="tag-row"><span class="tag">In-Context Memory</span><span class="tag">Vector Store</span><span class="tag">Summarization</span><span class="tag">Entity Memory</span><span class="tag">Session State</span><span class="tag">LangChain Memory</span></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">3</span> Real-World Example</h2>
+<p><strong>Customer Support AI with Persistent Memory</strong></p>
+<p>A SaaS company deploys an AI support agent. Without memory, every time a user opens a new ticket, the agent asks for their plan tier, their account ID, and what they were trying to do — even if they filed a ticket yesterday about the exact same issue. This is infuriating.</p>
+<p>With a properly engineered memory system: when a user starts a conversation, the agent retrieves their profile (name, plan, account history) from a key-value store. It queries a vector database for semantically similar past tickets to surface relevant solutions. During the conversation, it writes a structured summary of the resolution to long-term memory. Next time that user reaches out — even months later — the agent immediately has context: "I see you had a billing issue in March that we resolved by upgrading your plan. Are you experiencing something similar?" This transforms the experience from a generic chatbot to a knowledgeable support partner.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">4</span> Step-by-Step Explanation</h2>
+<h3>The Four Memory Types</h3>
+<ol>
+  <li><strong>In-Context (Buffer) Memory:</strong> Append the full conversation history to every prompt. Simple to implement. Cost grows linearly with conversation length. Hard limit at context window size. Best for short, single-session interactions.</li>
+  <li><strong>Summarization Memory:</strong> After every N turns (or when approaching the token limit), call the LLM to compress the conversation history into a concise summary. Store the summary and use it instead of raw history. Keeps token cost flat while preserving key information. Loses fine-grained detail.</li>
+  <li><strong>Entity Memory:</strong> Extract and store structured facts about named entities mentioned in conversation (people, projects, preferences, deadlines). When an entity is mentioned again, inject its stored facts into context. Very token-efficient for knowledge-dense conversations.</li>
+  <li><strong>Vector Store (Semantic) Memory:</strong> Embed every conversation turn or memory chunk and store in a vector database. At each new turn, retrieve the top-K most semantically relevant past memories. Scales to unlimited history — only the relevant subset is ever in context. Most powerful but adds retrieval latency and requires a vector database.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">5</span> Python Code Example</h2>
+<p>Building all four memory types from scratch, then combining them into a production-ready memory manager.</p>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">from</span> collections <span class="kw">import</span> deque
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass, field
+<span class="kw">from</span> typing <span class="kw">import</span> List, Dict, Optional
+<span class="kw">import</span> json
+
+<span class="cm"># ── Type 1: Buffer Memory (raw conversation history) ─────────────────────────</span>
+<span class="kw">class</span> <span class="cl">BufferMemory</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_turns: int = <span class="num">20</span>):
+        self.history: deque = <span class="fn">deque</span>(maxlen=max_turns * <span class="num">2</span>)  <span class="cm"># user + assistant</span>
+
+    <span class="kw">def</span> <span class="fn">add</span>(self, role: str, content: str):
+        self.history.<span class="fn">append</span>(&#123;"role": role, "content": content&#125;)
+
+    <span class="kw">def</span> <span class="fn">get_messages</span>(self) -> List[Dict]:
+        <span class="kw">return</span> <span class="fn">list</span>(self.history)
+
+<span class="cm"># ── Type 2: Summary Memory (compress old turns) ───────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">SummaryMemory</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, summarize_fn, max_buffer: int = <span class="num">10</span>):
+        self.buffer = <span class="cl">BufferMemory</span>(max_turns=max_buffer)
+        self.summary = <span class="str">""</span>
+        self.summarize_fn = summarize_fn  <span class="cm"># callable: list[msg] -> str</span>
+        self.turn_count = <span class="num">0</span>
+        self.summarize_every = max_buffer
+
+    <span class="kw">def</span> <span class="fn">add</span>(self, role: str, content: str):
+        self.buffer.<span class="fn">add</span>(role, content)
+        self.turn_count += <span class="num">1</span>
+        <span class="kw">if</span> self.turn_count % self.summarize_every == <span class="num">0</span>:
+            self.<span class="fn">_compress</span>()
+
+    <span class="kw">def</span> <span class="fn">_compress</span>(self):
+        <span class="str">"""Summarize current buffer and clear it."""</span>
+        messages = self.buffer.<span class="fn">get_messages</span>()
+        <span class="kw">if</span> messages:
+            new_summary = self.<span class="fn">summarize_fn</span>(messages)
+            self.summary = self.summary + <span class="str">" "</span> + new_summary <span class="kw">if</span> self.summary <span class="kw">else</span> new_summary
+            self.buffer.history.<span class="fn">clear</span>()
+
+    <span class="kw">def</span> <span class="fn">get_context</span>(self) -> str:
+        parts = []
+        <span class="kw">if</span> self.summary:
+            parts.<span class="fn">append</span>(<span class="str">f"[Previous context summary]: &#123;self.summary&#125;"</span>)
+        recent = self.buffer.<span class="fn">get_messages</span>()
+        <span class="kw">if</span> recent:
+            parts.<span class="fn">append</span>(<span class="str">"[Recent turns]: "</span> + json.<span class="fn">dumps</span>(recent))
+        <span class="kw">return</span> <span class="str">"
+"</span>.<span class="fn">join</span>(parts)
+
+<span class="cm"># ── Type 3: Entity Memory (structured fact extraction) ────────────────────────</span>
+<span class="kw">class</span> <span class="cl">EntityMemory</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        self.entities: Dict[str, Dict] = &#123;&#125;   <span class="cm"># name -> &#123;facts&#125;</span>
+
+    <span class="kw">def</span> <span class="fn">upsert</span>(self, entity: str, facts: Dict):
+        <span class="kw">if</span> entity <span class="kw">not</span> <span class="kw">in</span> self.entities:
+            self.entities[entity] = &#123;&#125;
+        self.entities[entity].<span class="fn">update</span>(facts)
+
+    <span class="kw">def</span> <span class="fn">recall</span>(self, entity: str) -> Optional[Dict]:
+        <span class="kw">return</span> self.entities.<span class="fn">get</span>(entity)
+
+    <span class="kw">def</span> <span class="fn">format_for_prompt</span>(self, entities: List[str]) -> str:
+        lines = []
+        <span class="kw">for</span> e <span class="kw">in</span> entities:
+            facts = self.<span class="fn">recall</span>(e)
+            <span class="kw">if</span> facts:
+                lines.<span class="fn">append</span>(<span class="str">f"&#123;e&#125;: &#123;json.dumps(facts)&#125;"</span>)
+        <span class="kw">return</span> <span class="str">"
+"</span>.<span class="fn">join</span>(lines) <span class="kw">if</span> lines <span class="kw">else</span> <span class="str">""</span>
+
+<span class="cm"># ── Usage example ─────────────────────────────────────────────────────────────</span>
+entity_mem = <span class="cl">EntityMemory</span>()
+entity_mem.<span class="fn">upsert</span>(<span class="str">"Alice"</span>, &#123;"plan": "Pro", "language": "Python", "joined": "2024-01"&#125;)
+entity_mem.<span class="fn">upsert</span>(<span class="str">"Project X"</span>, &#123;"deadline": "2026-06-01", "status": "in progress"&#125;)
+
+context = entity_mem.<span class="fn">format_for_prompt</span>([<span class="str">"Alice"</span>, <span class="str">"Project X"</span>])
+<span class="fn">print</span>(<span class="str">"Entity context injected into prompt:"</span>)
+<span class="fn">print</span>(context)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+MEMORY ARCHITECTURE — Four Layers
+
+  USER MESSAGE
+       |
+       v
+  ┌─────────────────────────────────────────────────────────┐
+  │  MEMORY RETRIEVAL LAYER                                 │
+  │                                                         │
+  │  1. Entity Store (Redis/Postgres)                       │
+  │     -> "Alice: plan=Pro, lang=Python"                   │
+  │                                                         │
+  │  2. Vector Store (Pinecone/Chroma)                      │
+  │     -> top-3 semantically similar past memories        │
+  │                                                         │
+  │  3. Summary (in-memory string)                          │
+  │     -> "Previously discussed: billing issue resolved"   │
+  │                                                         │
+  │  4. Recent Buffer (last 5 turns)                        │
+  │     -> raw conversation messages                        │
+  └─────────────────┬───────────────────────────────────────┘
+                    |
+                    v
+  ┌─────────────────────────────────────────────────────────┐
+  │  ASSEMBLED PROMPT                                       │
+  │  [System prompt]                                        │
+  │  [Entity facts]                                         │
+  │  [Retrieved memories]                                   │
+  │  [Conversation summary]                                 │
+  │  [Recent turns]                                         │
+  │  [Current user message]                                 │
+  └─────────────────┬───────────────────────────────────────┘
+                    |
+                    v
+               LLM RESPONSE
+                    |
+                    v
+  ┌─────────────────────────────────────────────────────────┐
+  │  MEMORY WRITE LAYER                                     │
+  │  -> Extract entities, upsert to entity store            │
+  │  -> Embed turn, upsert to vector store                  │
+  │  -> Append to buffer, compress if needed                │
+  └─────────────────────────────────────────────────────────┘
+
+TOKEN COST COMPARISON (100-turn conversation):
+  Buffer (raw history):      ~20,000 tokens per call (grows forever)
+  Summary + small buffer:    ~2,000 tokens per call (stays flat!)
+  Vector retrieval (top-3):  ~1,500 tokens per call (stays flat!)
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">7</span> Practical Use Cases</h2>
+<p><strong>Personalized AI assistants:</strong> Consumer AI apps (like Pi or Character.ai) store user preferences, life context, and conversational history across months of sessions. The memory layer transforms a stateless LLM into a system that genuinely knows the user.</p>
+<p><strong>Long-running autonomous agents:</strong> Research agents, coding assistants, and task automation bots that work across dozens of tool calls and hours of execution write intermediate results to external memory (key-value or vector store) and retrieve them as needed — far exceeding any context window limit.</p>
+<p><strong>Multi-agent shared memory:</strong> In multi-agent systems, a shared vector store allows different specialized agents (researcher, writer, critic) to read each other's outputs without passing the full history in every message — enabling efficient collaboration at scale.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Using raw buffer memory for long conversations:</strong> Appending the full conversation history to every prompt causes token costs to grow linearly with conversation length. A 200-turn customer support conversation becomes completely unusable and prohibitively expensive. Always implement summarization or retrieval-based memory for anything beyond ~10 turns.</div>
+<div class="callout warn">⚠️ <strong>Storing too much in context — memory pollution:</strong> Retrieving too many past memories (e.g., top-20 instead of top-3) fills the context with marginally relevant information, diluting the model's attention on what actually matters. Tune your retrieval to return only the highest-signal memories.</div>
+<div class="callout danger">❌ <strong>Not scoping memory per user:</strong> In multi-tenant applications, memory must be strictly scoped to each user's session and identity. Mixing memory across users is a serious privacy violation. Always partition storage by user_id, session_id, or tenant_id.</div>
+<div class="callout warn">⚠️ <strong>Trusting retrieved memories without validation:</strong> Vector retrieval finds semantically similar past content — but similarity is not correctness. A retrieved memory from 6 months ago may be outdated or contradict current facts. Inject a recency or confidence score alongside retrieved memories so the model can weight them appropriately.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the four main types of memory in AI agent systems. What are the token cost implications of each?</li>
+  <li>How would you architect memory for a customer support chatbot that needs to remember user history across sessions, but must keep per-call token costs below 2,000 tokens?</li>
+  <li>What is the difference between parametric memory (weights) and external memory (database)? When is each appropriate?</li>
+  <li>How does vector store retrieval differ from simple keyword search for memory recall? When does retrieval fail even with a well-populated vector store?</li>
+  <li>In a multi-agent system, how would you design shared memory so that Agent A's output is accessible to Agent B without passing the full conversation history in every message?</li>
+  <li>What security and privacy controls must be applied to an AI memory system in a multi-tenant SaaS product?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-memory">
+  <li onclick="toggleTask(this)">Implement BufferMemory with a sliding window of the last 10 turns. Simulate a 30-turn conversation and verify that only the last 10 turns are ever included in the prompt.</li>
+  <li onclick="toggleTask(this)">Build SummaryMemory: every 5 turns, call an LLM (or a mock summarizer) to compress the buffer into one sentence. Print the summary after each compression step to verify quality.</li>
+  <li onclick="toggleTask(this)">Implement EntityMemory that parses LLM responses for structured facts using a regex or a second LLM call. Store user name, plan tier, and stated preferences across a simulated 5-turn conversation.</li>
+  <li onclick="toggleTask(this)">Combine all three memory types into a MemoryManager class. Each turn: retrieve relevant context from all three layers, assemble the prompt, get a (mocked) response, then update all three layers.</li>
+  <li onclick="toggleTask(this)">Benchmark token usage across 50 turns using (a) raw buffer memory, (b) summary memory, and (c) vector retrieval with top-3. Plot tokens per call over time to visualize the cost difference.</li>
+</ul>

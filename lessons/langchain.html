@@ -1,0 +1,144 @@
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">1</span> Simple Explanation</h2>
+<p><strong>LangChain</strong> is an open-source framework that provides building blocks for composing LLM-powered applications. Instead of writing boilerplate code to manage prompts, chain LLM calls, connect to tools, and maintain memory, LangChain provides pre-built, composable components that you wire together. Think of it as the React of AI development — React provides components (Button, Form, List) that you compose into applications; LangChain provides components (LLMChain, RetrievalQA, Agent) that you compose into AI pipelines.</p>
+<p>At its core, LangChain is built around the concept of <strong>chains</strong> — sequences of operations where the output of one step becomes the input of the next. A simple chain might be: (1) user query → (2) retrieve relevant documents → (3) format prompt with documents → (4) call LLM → (5) parse output → (6) return answer. LangChain Expression Language (LCEL) uses the pipe operator (<code>|</code>) to compose these steps elegantly.</p>
+<div class="callout">💡 <strong>Key insight:</strong> LangChain's value is not in doing anything you couldn't do with raw API calls — it's in providing battle-tested abstractions that handle edge cases, support swapping components (switch from OpenAI to Anthropic with one line), and give you production features like streaming, async, retries, and observability out of the box.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">2</span> Why It Matters for AI Engineers</h2>
+<p>LangChain is one of the most widely adopted AI application frameworks. Understanding it means understanding the patterns used by thousands of production AI systems. Even if you choose not to use LangChain in a project, its abstractions (chains, agents, memory, retrievers) represent the canonical vocabulary of LLM application architecture. You'll encounter these concepts in every AI engineering job interview and codebase.</p>
+<div class="tag-row"><span class="tag">LCEL</span><span class="tag">Chains</span><span class="tag">Retrievers</span><span class="tag">Output Parsers</span><span class="tag">LangSmith</span><span class="tag">Runnable</span></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">3</span> Real-World Example</h2>
+<p><strong>Elastic's AI-Powered Search</strong></p>
+<p>Elastic integrated LangChain into their developer platform to build AI-powered search pipelines. Their pipeline uses LangChain's retriever interface to fetch results from Elasticsearch, passes them through a LangChain prompt template that formats them as context, calls an LLM to generate a synthesized answer, and uses an output parser to extract structured results. LangChain's abstraction layer means Elastic can swap the underlying LLM (from OpenAI to their own fine-tuned model) without changing their application code. LangSmith traces give them full observability into every chain execution — showing exactly which documents were retrieved, what prompt was sent, and where latency occurs.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>LLMs and Chat Models:</strong> Wrappers around model APIs (OpenAI, Anthropic, Ollama). Provide a consistent interface — you can swap providers without changing downstream code.</li>
+  <li><strong>Prompt Templates:</strong> Reusable prompt structures with variables. Separate your prompt logic from your Python logic. Support formatting, few-shot examples, and chat message structures.</li>
+  <li><strong>Output Parsers:</strong> Convert raw LLM text output into structured Python objects (Pydantic models, lists, JSON). Eliminate fragile string parsing code.</li>
+  <li><strong>LCEL (LangChain Expression Language):</strong> Compose steps with <code>|</code>. Every component is a Runnable with <code>.invoke()</code>, <code>.stream()</code>, and <code>.batch()</code> methods. Supports async natively.</li>
+  <li><strong>Retrievers:</strong> Standardized interface to fetch relevant documents. Backed by vector databases, keyword search, or hybrid retrieval. Plug into any LCEL chain.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">from</span> langchain_openai <span class="kw">import</span> ChatOpenAI, OpenAIEmbeddings
+<span class="kw">from</span> langchain_core.prompts <span class="kw">import</span> ChatPromptTemplate
+<span class="kw">from</span> langchain_core.output_parsers <span class="kw">import</span> StrOutputParser
+<span class="kw">from</span> langchain_core.runnables <span class="kw">import</span> RunnablePassthrough
+<span class="kw">from</span> langchain_community.vectorstores <span class="kw">import</span> Chroma
+<span class="kw">from</span> langchain.text_splitter <span class="kw">import</span> RecursiveCharacterTextSplitter
+<span class="kw">from</span> langchain_community.document_loaders <span class="kw">import</span> TextLoader
+
+<span class="cm"># ── 1. Load and chunk documents ────────────────────────────</span>
+loader = <span class="cl">TextLoader</span>(<span class="str">"company_docs.txt"</span>)
+docs = loader.<span class="fn">load</span>()
+
+splitter = <span class="cl">RecursiveCharacterTextSplitter</span>(
+    chunk_size=<span class="num">500</span>, chunk_overlap=<span class="num">50</span>
+)
+chunks = splitter.<span class="fn">split_documents</span>(docs)
+
+<span class="cm"># ── 2. Create vector store ─────────────────────────────────</span>
+vectorstore = Chroma.<span class="fn">from_documents</span>(
+    documents=chunks,
+    embedding=<span class="cl">OpenAIEmbeddings</span>(model=<span class="str">"text-embedding-3-small"</span>)
+)
+retriever = vectorstore.<span class="fn">as_retriever</span>(search_kwargs=&#123;<span class="str">"k"</span>: <span class="num">4</span>&#125;)
+
+<span class="cm"># ── 3. Build RAG chain with LCEL ───────────────────────────</span>
+prompt = ChatPromptTemplate.<span class="fn">from_template</span>(<span class="str">"""
+Answer the question based only on the following context:
+
+&#123;context&#125;
+
+Question: &#123;question&#125;
+
+Answer clearly and concisely. If the answer is not in the context,
+say "I don't have that information."
+"""</span>)
+
+llm = <span class="cl">ChatOpenAI</span>(model=<span class="str">"gpt-4o-mini"</span>, temperature=<span class="num">0</span>)
+
+<span class="kw">def</span> <span class="fn">format_docs</span>(docs):
+    <span class="kw">return</span> <span class="str">"
+
+"</span>.<span class="fn">join</span>(doc.page_content <span class="kw">for</span> doc <span class="kw">in</span> docs)
+
+<span class="cm"># The | operator composes Runnables into a chain</span>
+rag_chain = (
+    &#123;<span class="str">"context"</span>: retriever | format_docs, <span class="str">"question"</span>: <span class="cl">RunnablePassthrough</span>()&#125;
+    | prompt
+    | llm
+    | <span class="cl">StrOutputParser</span>()
+)
+
+<span class="cm"># ── 4. Use it ──────────────────────────────────────────────</span>
+answer = rag_chain.<span class="fn">invoke</span>(<span class="str">"What is our refund policy?"</span>)
+<span class="fn">print</span>(answer)
+
+<span class="cm"># Streaming response</span>
+<span class="kw">for</span> chunk <span class="kw">in</span> rag_chain.<span class="fn">stream</span>(<span class="str">"What are the support hours?"</span>):
+    <span class="fn">print</span>(chunk, end=<span class="str">""</span>, flush=<span class="kw">True</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+LCEL RAG CHAIN — Data Flow
+
+  User Query: "What is our refund policy?"
+        │
+        ├──────────────────────────────────┐
+        ▼                                  ▼
+  [Retriever]                    [RunnablePassthrough]
+  Query → Vector DB                (passes question through)
+  Top-4 relevant chunks                    │
+        │                                  │
+        ▼                                  │
+  [format_docs]                            │
+  Join chunks into string                  │
+        │                                  │
+        └───────────┬──────────────────────┘
+                    ▼
+            [Prompt Template]
+            System + {context} + {question}
+                    │
+                    ▼
+              [ChatOpenAI]
+              GPT-4o-mini API call
+                    │
+                    ▼
+           [StrOutputParser]
+           Extract text from response
+                    │
+                    ▼
+             Final Answer (string)
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">7</span> Practical Use Cases</h2>
+<p><strong>Multi-document summarization:</strong> Chain together a retriever, a map step (summarize each document), and a reduce step (synthesize summaries into one) to summarize document sets too large to fit in a single context window.</p>
+<p><strong>Structured data extraction:</strong> Use a PydanticOutputParser to make an LLM extract structured fields (name, date, amount) from unstructured documents (invoices, contracts) and return validated Python objects with type checking.</p>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Over-engineering with LangChain:</strong> For simple single-call LLM applications, raw API calls are clearer and easier to debug than a LangChain chain. Use LangChain when you genuinely need composition (multiple steps, retrieval, agents). Don't introduce the abstraction layer for a single prompt.</div>
+<div class="callout warn">⚠️ <strong>Not using LangSmith:</strong> LangChain chains can fail in subtle ways — wrong documents retrieved, prompt formatting errors, output parser failures. LangSmith provides full tracing of every chain execution. Set it up before your first production deployment, not after.</div>
+<div class="callout danger">❌ <strong>Ignoring async:</strong> Web applications that call LangChain synchronously will block their event loop. Use <code>chain.ainvoke()</code> and <code>chain.astream()</code> in FastAPI or any async web framework to avoid this.</div>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is LCEL? How does it differ from the older sequential chain API? Why is it better?</li>
+  <li>Explain the Retriever abstraction in LangChain. What are the advantages of using a standard interface vs. calling a vector DB directly?</li>
+  <li>How would you add streaming support to a LangChain RAG chain in a FastAPI endpoint?</li>
+  <li>When would you choose LangChain vs. building a custom pipeline with raw API calls? What's the tradeoff?</li>
+  <li>What is LangSmith and why is it important for production LangChain applications?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(236,72,153,.15);color:#ec4899">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-langchain">
+  <li onclick="toggleTask(this)">Build a RAG chain using LCEL that answers questions about a PDF you upload. Use RecursiveCharacterTextSplitter, Chroma, and GPT-4o-mini. Test with 5 questions and evaluate answer quality.</li>
+  <li onclick="toggleTask(this)">Create a chain that uses PydanticOutputParser to extract structured data (company name, revenue, CEO) from unstructured company descriptions. Verify the output matches the schema.</li>
+  <li onclick="toggleTask(this)">Build a streaming FastAPI endpoint that wraps a LangChain chain. Use Server-Sent Events to stream tokens to the client as they're generated. Test with curl.</li>
+  <li onclick="toggleTask(this)">Implement a "map-reduce" summarization chain: chunk a long document, summarize each chunk independently (map), then synthesize all chunk summaries into a final document summary (reduce).</li>
+  <li onclick="toggleTask(this)">Set up LangSmith tracing (free tier). Run your RAG chain 10 times with different questions. Use the LangSmith dashboard to identify which step has the highest latency.</li>
+</ul>

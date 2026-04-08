@@ -1,0 +1,176 @@
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">1</span> Simple Explanation</h2>
+<p>Probability is the mathematics of uncertainty. It gives you a formal way to say "I'm 80% confident this is a cat" or "there's a 1-in-a-million chance this generated text is harmful." Statistics is the related field that helps you draw conclusions from data — estimating what's true about the whole world from the samples you've observed.</p>
+<p>AI systems are fundamentally probabilistic. When a language model generates the next token, it produces a <strong>probability distribution</strong> over the entire vocabulary — saying "there's a 42% chance the next word is 'the', a 15% chance it's 'a', a 3% chance it's 'neural'..." and then samples from that distribution. Understanding probability means understanding how AI actually makes decisions.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Neural networks don't "know" things — they estimate probabilities. A model that outputs 0.95 for class "cat" is saying it's 95% confident. Understanding this helps you interpret model outputs, calibrate confidence, and know when to trust or distrust a model.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">2</span> Why It Matters for AI Engineers</h2>
+<p>Probability and statistics underpin model evaluation (accuracy, precision, recall, F1), training objectives (cross-entropy loss is a probability concept), sampling strategies (temperature, top-p, top-k sampling in LLMs), uncertainty quantification, A/B testing AI systems in production, and detecting data drift. When your model's performance degrades in production, statistical tools tell you whether it's a real problem or just random noise.</p>
+<div class="tag-row"><span class="tag">Distributions</span><span class="tag">Bayes Theorem</span><span class="tag">Cross-Entropy</span><span class="tag">Sampling</span><span class="tag">Hypothesis Testing</span><span class="tag">MLE</span></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">3</span> Real-World Example</h2>
+<p>GPT-4's temperature parameter is pure probability. At temperature=0.0, the model always picks the highest-probability token (greedy decoding — deterministic). At temperature=1.0, it samples directly from the model's learned distribution. At temperature=2.0, the distribution is flattened — more random and creative. OpenAI's moderation API outputs a probability score for each harm category; the threshold for blocking is a business decision about acceptable false-positive/negative rates — a statistics problem. And when Anthropic evaluates Claude's safety, they use statistical hypothesis testing to determine whether a new model is meaningfully safer than a previous one.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">4</span> Step-by-Step: Core Concepts</h2>
+<h3>Probability Distributions</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Softmax converts raw logits → probability distribution</span>
+<span class="cm"># This is the last step of every classification model</span>
+<span class="kw">def</span> <span class="fn">softmax</span>(logits: np.ndarray, temperature: float = <span class="num">1.0</span>) -> np.ndarray:
+    logits = logits / temperature          <span class="cm"># scale by temperature</span>
+    exp_logits = np.<span class="fn">exp</span>(logits - np.<span class="fn">max</span>(logits))  <span class="cm"># stable softmax</span>
+    <span class="kw">return</span> exp_logits / exp_logits.<span class="fn">sum</span>()
+
+logits = np.<span class="fn">array</span>([<span class="num">3.0</span>, <span class="num">1.0</span>, <span class="num">0.2</span>])   <span class="cm"># raw model outputs</span>
+
+probs_t1 = <span class="fn">softmax</span>(logits, temperature=<span class="num">1.0</span>)
+probs_t2 = <span class="fn">softmax</span>(logits, temperature=<span class="num">2.0</span>)
+probs_t01 = <span class="fn">softmax</span>(logits, temperature=<span class="num">0.1</span>)
+
+<span class="fn">print</span>(<span class="str">f"T=1.0: &#123;np.round(probs_t1, 3)&#125;"</span>)    <span class="cm"># [0.844 0.114 0.042] — moderate</span>
+<span class="fn">print</span>(<span class="str">f"T=2.0: &#123;np.round(probs_t2, 3)&#125;"</span>)    <span class="cm"># [0.576 0.269 0.155] — flatter/creative</span>
+<span class="fn">print</span>(<span class="str">f"T=0.1: &#123;np.round(probs_t01, 3)&#125;"</span>)   <span class="cm"># [0.999 0.001 0.000] — sharp/deterministic</span>
+<span class="fn">print</span>(<span class="str">f"All sum to 1: &#123;probs_t1.sum():.3f&#125;"</span>)  <span class="cm"># 1.000 ✓</span></code></pre>
+</div>
+
+<h3>Cross-Entropy Loss — How Models Learn</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Cross-entropy measures how wrong your probability distribution is</span>
+<span class="cm"># vs. the true distribution. Lower = better predictions.</span>
+<span class="kw">def</span> <span class="fn">cross_entropy</span>(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    <span class="cm"># Clip to avoid log(0)</span>
+    y_pred = np.<span class="fn">clip</span>(y_pred, <span class="num">1e-9</span>, <span class="num">1</span>)
+    <span class="kw">return</span> -np.<span class="fn">sum</span>(y_true * np.<span class="fn">log</span>(y_pred))
+
+<span class="cm"># True label: class 0 (one-hot encoded)</span>
+y_true = np.<span class="fn">array</span>([<span class="num">1.0</span>, <span class="num">0.0</span>, <span class="num">0.0</span>])
+
+<span class="cm"># A confident correct prediction → low loss</span>
+y_confident = np.<span class="fn">array</span>([<span class="num">0.95</span>, <span class="num">0.03</span>, <span class="num">0.02</span>])
+<span class="fn">print</span>(<span class="str">f"Confident correct: &#123;cross_entropy(y_true, y_confident):.3f&#125;"</span>)  <span class="cm"># 0.051</span>
+
+<span class="cm"># An uncertain prediction → medium loss</span>
+y_unsure = np.<span class="fn">array</span>([<span class="num">0.4</span>, <span class="num">0.35</span>, <span class="num">0.25</span>])
+<span class="fn">print</span>(<span class="str">f"Uncertain: &#123;cross_entropy(y_true, y_unsure):.3f&#125;"</span>)            <span class="cm"># 0.916</span>
+
+<span class="cm"># A confident wrong prediction → very high loss</span>
+y_wrong = np.<span class="fn">array</span>([<span class="num">0.02</span>, <span class="num">0.95</span>, <span class="num">0.03</span>])
+<span class="fn">print</span>(<span class="str">f"Confident wrong: &#123;cross_entropy(y_true, y_wrong):.3f&#125;"</span>)        <span class="cm"># 3.912</span></code></pre>
+</div>
+
+<h3>Bayes' Theorem — Updating Beliefs with Evidence</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Bayes: P(A|B) = P(B|A) * P(A) / P(B)</span>
+<span class="cm"># "What's the probability of A, given we observed B?"</span>
+
+<span class="cm"># Example: spam filter</span>
+<span class="cm"># P(spam) = 0.3 — 30% of emails are spam (prior)</span>
+<span class="cm"># P("free money" | spam) = 0.8 — 80% of spam contains this phrase</span>
+<span class="cm"># P("free money" | not spam) = 0.01 — 1% of legit email contains it</span>
+
+p_spam = <span class="num">0.3</span>
+p_phrase_given_spam = <span class="num">0.8</span>
+p_phrase_given_legit = <span class="num">0.01</span>
+
+p_phrase = (p_phrase_given_spam * p_spam +
+            p_phrase_given_legit * (<span class="num">1</span> - p_spam))
+
+p_spam_given_phrase = (p_phrase_given_spam * p_spam) / p_phrase
+
+<span class="fn">print</span>(<span class="str">f"P(spam | 'free money'): &#123;p_spam_given_phrase:.1%&#125;"</span>)
+<span class="cm"># P(spam | 'free money'): 97.2% — very likely spam!</span></code></pre>
+</div>
+
+<h3>Top-p (Nucleus) Sampling — How LLMs Generate Text</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">top_p_sample</span>(probs: np.ndarray, p: float = <span class="num">0.9</span>) -> int:
+    <span class="str">"""Sample from the smallest set of tokens whose probs sum to p."""</span>
+    sorted_idx = np.<span class="fn">argsort</span>(probs)[::-<span class="num">1</span>]   <span class="cm"># sort descending</span>
+    sorted_probs = probs[sorted_idx]
+    cumulative = np.<span class="fn">cumsum</span>(sorted_probs)
+
+    <span class="cm"># Keep only tokens in the nucleus</span>
+    cutoff = np.<span class="fn">searchsorted</span>(cumulative, p) + <span class="num">1</span>
+    nucleus_idx = sorted_idx[:cutoff]
+    nucleus_probs = probs[nucleus_idx]
+    nucleus_probs /= nucleus_probs.<span class="fn">sum</span>()   <span class="cm"># renormalize</span>
+
+    <span class="kw">return</span> np.random.<span class="fn">choice</span>(nucleus_idx, p=nucleus_probs)
+
+vocab_probs = np.<span class="fn">array</span>([<span class="num">0.4</span>, <span class="num">0.3</span>, <span class="num">0.15</span>, <span class="num">0.1</span>, <span class="num">0.03</span>, <span class="num">0.02</span>])
+token_id = <span class="fn">top_p_sample</span>(vocab_probs, p=<span class="num">0.9</span>)
+<span class="fn">print</span>(<span class="str">f"Sampled token ID: &#123;token_id&#125;"</span>)   <span class="cm"># from top 3 tokens only</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">5</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+TEMPERATURE EFFECT ON PROBABILITY DISTRIBUTION
+
+  Logits: [3.0, 1.0, 0.2]  →  Tokens: ["the", "a", "neural"]
+
+  Temperature = 0.1 (sharp — almost always picks "the")
+  ████████████████████████████████████████████░░░  99.9%
+  ░                                                  0.1%
+  ░                                                  0.0%
+
+  Temperature = 1.0 (balanced — standard sampling)
+  ██████████████████████████████████░░░░░░░░░░░░░░  84.4%
+  ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  11.4%
+  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   4.2%
+
+  Temperature = 2.0 (flat — more creative/random)
+  ████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░  57.6%
+  ████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  26.9%
+  ██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  15.5%
+
+KEY STATISTICS METRICS IN AI EVALUATION:
+  ┌────────────────────────────────────────────────────────┐
+  │  Accuracy    = correct / total                         │
+  │  Precision   = TP / (TP + FP)  ← of predicted pos,    │
+  │                                    how many were right?│
+  │  Recall      = TP / (TP + FN)  ← of actual pos,       │
+  │                                    how many found?     │
+  │  F1          = 2 * P*R / (P+R) ← harmonic mean        │
+  │  Cross-Entropy Loss → lower = model is more confident  │
+  │                        and correct                     │
+  └────────────────────────────────────────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">6</span> Practical Use Cases</h2>
+<p><strong>Calibration in production:</strong> A well-calibrated model means that when it says 80% confident, it's right 80% of the time. Many models are overconfident — they say 99% but are only right 70% of the time. Temperature scaling is a post-training statistical technique to fix this.</p>
+<p><strong>A/B testing AI features:</strong> When you ship a new prompt or model version to 5% of users, you use a statistical significance test (t-test or chi-squared) to determine if the improvement in click-through or satisfaction is real or just random variation.</p>
+<p><strong>Data drift detection:</strong> When your model's input distribution shifts (e.g., users start asking different types of questions), statistical tests like the Kolmogorov-Smirnov test detect the shift before model performance collapses.</p>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">7</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Mistake 1:</strong> Reporting only accuracy on imbalanced datasets. If 95% of emails are not spam, a model that predicts "not spam" for everything has 95% accuracy — and is completely useless. Always check precision, recall, and F1.</div>
+<div class="callout danger">❌ <strong>Mistake 2:</strong> Treating model confidence scores as probabilities. Raw logits are not probabilities. Even after softmax, uncalibrated models are overconfident. Never use a model's raw output probability as a trust score without calibration.</div>
+<div class="callout danger">❌ <strong>Mistake 3:</strong> Using temperature=0 for all production use cases. Greedy decoding produces repetitive, degenerate text for open-ended generation. Temperature between 0.7 and 1.0 is almost always better for creative or conversational tasks.</div>
+<div class="callout danger">❌ <strong>Mistake 4:</strong> Confusing correlation with causation in model analysis. Your model might be very accurate because it learned a spurious correlation in the training data (e.g., "documents mentioning hospitals are more likely to be negative"). Statistical analysis helps detect this.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">8</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is cross-entropy loss and why is it used instead of mean squared error for classification tasks?</li>
+  <li>Explain temperature in LLM sampling. What happens mathematically as temperature approaches zero?</li>
+  <li>Your model has 98% accuracy on a test set but performs poorly in production. What statistical concepts would help you diagnose this?</li>
+  <li>What is the difference between top-k and top-p sampling? When would you prefer each?</li>
+  <li>Explain Bayes' theorem in the context of a spam filter. What is the prior and what is the posterior?</li>
+  <li>How would you determine if a new model version is statistically significantly better than the old one in an A/B test?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">9</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-prob">
+  <li onclick="toggleTask(this)">Implement softmax with temperature from scratch and plot how the distribution changes for T=0.1, 0.5, 1.0, 2.0 using matplotlib</li>
+  <li onclick="toggleTask(this)">Build a Naive Bayes spam classifier from scratch using only Python dictionaries and basic probability math on a small labeled dataset</li>
+  <li onclick="toggleTask(this)">Implement top-k and top-p sampling from a random probability distribution and compare the diversity of outputs across 100 samples</li>
+  <li onclick="toggleTask(this)">Calculate precision, recall, and F1 for a binary classifier by hand given a confusion matrix, then verify with sklearn.metrics</li>
+  <li onclick="toggleTask(this)">Load any pre-trained HuggingFace model, get the logits for a masked token, apply softmax, and interpret the top-10 probability predictions</li>
+</ul>

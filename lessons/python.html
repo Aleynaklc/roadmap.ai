@@ -1,0 +1,141 @@
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">1</span> Simple Explanation</h2>
+<p>Python is a high-level, interpreted programming language designed for readability. Think of it like writing instructions in plain English that a computer can execute. It's the #1 language in AI/ML because of its enormous ecosystem of libraries built specifically for data and machine learning work.</p>
+<div class="callout">🐍 <strong>Key insight:</strong> You don't need to be a Python expert before starting AI. You need to know the core concepts well — functions, classes, lists, dicts, and how to read/write files. The AI-specific stuff builds on top of that.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">2</span> Why It Matters for AI Engineers</h2>
+<p>Every major AI framework — PyTorch, TensorFlow, scikit-learn, Hugging Face, LangChain — is Python-first. When you read research papers and want to run the code, it will be Python. When you build an AI app, the orchestration layer will be Python. There is no alternative.</p>
+<div class="tag-row"><span class="tag">PyTorch</span><span class="tag">TensorFlow</span><span class="tag">scikit-learn</span><span class="tag">NumPy</span><span class="tag">Pandas</span><span class="tag">Hugging Face</span></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">3</span> Core Concepts You Must Know</h2>
+<h3>Variables, Types & Control Flow</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Basic Python you'll use daily in AI work</span>
+name = <span class="str">"GPT-4"</span>
+version = <span class="num">4.0</span>
+is_multimodal = <span class="kw">True</span>
+context_window = <span class="num">128_000</span>  <span class="cm"># underscores for readability</span>
+
+<span class="cm"># List — ordered, mutable</span>
+tokens = [<span class="str">"hello"</span>, <span class="str">"world"</span>, <span class="str">"!"</span>]
+
+<span class="cm"># Dict — key-value pairs (JSON-like)</span>
+model_config = &#123;
+    <span class="str">"temperature"</span>: <span class="num">0.7</span>,
+    <span class="str">"max_tokens"</span>: <span class="num">1000</span>,
+    <span class="str">"model"</span>: <span class="str">"gpt-4o"</span>,
+&#125;
+
+<span class="cm"># Control flow</span>
+<span class="kw">if</span> is_multimodal:
+    <span class="fn">print</span>(<span class="str">f"&#123;name&#125; supports images and text"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">f"&#123;name&#125; is text-only"</span>)
+
+<span class="cm"># List comprehension — very Pythonic, used everywhere in AI</span>
+token_lengths = [<span class="fn">len</span>(t) <span class="kw">for</span> t <span class="kw">in</span> tokens]
+<span class="fn">print</span>(token_lengths)  <span class="cm"># [5, 5, 1]</span></code></pre>
+</div>
+
+<h3>Functions & Classes</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Functions with type hints — standard in modern AI codebases</span>
+<span class="kw">def</span> <span class="fn">chunk_text</span>(text: <span class="cl">str</span>, chunk_size: <span class="cl">int</span> = <span class="num">512</span>) -> <span class="cl">list</span>[<span class="cl">str</span>]:
+    <span class="str">"""Split text into chunks for embedding."""</span>
+    words = text.<span class="fn">split</span>()
+    chunks = []
+    <span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(<span class="num">0</span>, <span class="fn">len</span>(words), chunk_size):
+        chunk = <span class="str">" "</span>.<span class="fn">join</span>(words[i : i + chunk_size])
+        chunks.<span class="fn">append</span>(chunk)
+    <span class="kw">return</span> chunks
+
+<span class="cm"># Class — used for wrapping AI models and pipelines</span>
+<span class="kw">class</span> <span class="cl">LLMClient</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, model: <span class="cl">str</span>, temperature: <span class="cl">float</span> = <span class="num">0.7</span>):
+        self.model = model
+        self.temperature = temperature
+        self.history = []   <span class="cm"># conversation memory</span>
+
+    <span class="kw">def</span> <span class="fn">chat</span>(self, message: <span class="cl">str</span>) -> <span class="cl">str</span>:
+        self.history.<span class="fn">append</span>(&#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: message&#125;)
+        <span class="cm"># ... call API here ...</span>
+        response = <span class="str">f"[&#123;self.model&#125;] Response to: &#123;message&#125;"</span>
+        self.history.<span class="fn">append</span>(&#123;<span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: response&#125;)
+        <span class="kw">return</span> response
+
+client = <span class="cl">LLMClient</span>(<span class="str">"gpt-4o"</span>)
+<span class="fn">print</span>(client.<span class="fn">chat</span>(<span class="str">"Explain transformers"</span>))</code></pre>
+</div>
+
+<h3>NumPy — The Foundation of AI Computation</h3>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Arrays are the core data type in ML</span>
+embedding = np.<span class="fn">array</span>([<span class="num">0.2</span>, <span class="num">-0.5</span>, <span class="num">0.8</span>, <span class="num">0.1</span>])
+
+<span class="cm"># Matrix multiplication — used in every neural network</span>
+weights = np.<span class="fn">random</span>.<span class="fn">randn</span>(<span class="num">4</span>, <span class="num">3</span>)  <span class="cm"># 4 inputs → 3 outputs</span>
+output = np.<span class="fn">dot</span>(embedding, weights)  <span class="cm"># shape: (3,)</span>
+
+<span class="cm"># Vectorized operations — fast, no Python loops</span>
+scores = np.<span class="fn">array</span>([<span class="num">2.1</span>, <span class="num">0.5</span>, <span class="num">-1.3</span>, <span class="num">3.7</span>])
+<span class="cm"># Softmax — converts scores to probabilities</span>
+softmax = np.<span class="fn">exp</span>(scores) / np.<span class="fn">sum</span>(np.<span class="fn">exp</span>(scores))
+<span class="fn">print</span>(softmax)  <span class="cm"># [0.15, 0.04, 0.006, 0.80] (sums to 1.0)</span>
+<span class="fn">print</span>(<span class="str">f"Predicted class: &#123;np.argmax(softmax)&#125;"</span>)  <span class="cm"># 3</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">4</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+Python AI Ecosystem — Mental Map
+
+  ┌─────────────────────────────────────────────────────┐
+  │                  YOUR AI APPLICATION                 │
+  └──────────────────────────┬──────────────────────────┘
+                             │
+       ┌─────────────────────┼─────────────────────┐
+       │                     │                     │
+  ┌────▼────┐          ┌─────▼────┐          ┌─────▼────┐
+  │LangChain│          │Hugging   │          │FastAPI   │
+  │LlamaIdx │          │Face 🤗   │          │(serving) │
+  └────┬────┘          └─────┬────┘          └─────┬────┘
+       │                     │                     │
+       └─────────────────────┼─────────────────────┘
+                             │
+       ┌─────────────────────┼─────────────────────┐
+       │                     │                     │
+  ┌────▼────┐          ┌─────▼────┐          ┌─────▼────┐
+  │ PyTorch │          │  NumPy   │          │  Pandas  │
+  │  (DL)   │          │ (arrays) │          │  (data)  │
+  └─────────┘          └──────────┘          └──────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  Python 3.11+   │
+                    └─────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">5</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Mistake 1:</strong> Spending months "mastering" Python before touching AI. You'll learn more in context — pick up Python concepts as you need them.</div>
+<div class="callout danger">❌ <strong>Mistake 2:</strong> Using Python loops where NumPy vectorization should be used. Looping over arrays is 100-1000x slower than NumPy operations.</div>
+<div class="callout danger">❌ <strong>Mistake 3:</strong> Ignoring virtual environments. Always use <code>venv</code> or <code>conda</code> for AI projects — dependency conflicts are brutal.</div>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">6</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between a list and a NumPy array? When would you use each?</li>
+  <li>Explain Python's GIL and why it matters for parallel computation in ML.</li>
+  <li>What are generators and why are they useful when loading large datasets?</li>
+  <li>How does Python's <code>@property</code> decorator work? Where would you use it in an AI class?</li>
+  <li>Explain the difference between shallow copy and deep copy of a nested list.</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(0,212,255,.15);color:#00d4ff">7</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-python">
+  <li onclick="toggleTask(this)">Write a function that tokenizes text by splitting on whitespace and punctuation</li>
+  <li onclick="toggleTask(this)">Build a simple LRU cache class using an OrderedDict</li>
+  <li onclick="toggleTask(this)">Implement softmax from scratch using only NumPy (no frameworks)</li>
+  <li onclick="toggleTask(this)">Use a generator to lazily load lines from a massive text file without loading it all into memory</li>
+  <li onclick="toggleTask(this)">Profile two versions of a dot-product function: one with a Python loop, one with NumPy — compare speeds</li>
+</ul>
