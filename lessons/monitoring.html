@@ -1,0 +1,189 @@
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">1</span> Simple Explanation</h2>
+<p><strong>Monitoring AI Systems</strong> is the practice of continuously observing your deployed model's behavior in production to detect when it stops working correctly. Traditional software monitoring watches for crashes, high CPU, or slow response times. AI monitoring watches for something subtler and more dangerous: a model that is still responding quickly and without errors — but giving increasingly wrong, biased, or harmful answers.</p>
+<p>This happens because the world changes. The data distribution your model was trained on shifts over time — user behavior evolves, language patterns change, fraud tactics adapt, products get updated. This is called <strong>data drift</strong> and <strong>concept drift</strong>. The model doesn't know the world has changed; it just keeps applying patterns learned months ago to a world that no longer matches. Without monitoring, you won't notice until users complain loudly or a business metric collapses.</p>
+<p>AI monitoring has two layers: <strong>operational monitoring</strong> (latency, error rates, throughput — the same as any API) and <strong>model monitoring</strong> (prediction quality, input distribution, output distribution, data drift, fairness metrics). The second layer is what makes AI monitoring unique and hard.</p>
+<div class="callout">💡 <strong>Key insight:</strong> A model can have 100% uptime and 0% error rate while silently delivering wrong predictions. An HTTP 200 response from your model endpoint means "the server responded" — it says nothing about whether the answer was correct. This is why model monitoring requires specialized tooling beyond standard APM tools like Datadog or New Relic.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">2</span> Why It Matters for AI Engineers</h2>
+<p>Model performance decay in production is not a question of if — it is a question of when. Every production AI system will eventually experience drift, and the engineers who catch it early with monitoring are the ones who prevent silent business failures. Monitoring is also the evidence base for deciding when to retrain, when to roll back, and when to escalate to product and leadership. Without monitoring data, these decisions are gut feeling. With it, they are engineering decisions.</p>
+<div class="tag-row"><span class="tag">Data Drift</span><span class="tag">Concept Drift</span><span class="tag">LLM Tracing</span><span class="tag">LangSmith</span><span class="tag">Prometheus</span><span class="tag">Model Degradation</span></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">3</span> Real-World Example</h2>
+<p><strong>Uber's Surge Pricing Model Drift</strong></p>
+<p>Uber's demand forecasting model was trained on pre-pandemic commute patterns. When COVID hit, the model's input distribution changed overnight — morning rush hour disappeared, airport demand collapsed, late-night food delivery surged. The model wasn't broken (no errors, normal latency) but its predictions were completely wrong because the world it was trained on no longer existed. Uber's monitoring system detected the distribution shift within hours by comparing the statistical distribution of incoming ride request features against the training distribution baseline. This triggered an immediate retraining cycle rather than waiting for driver complaints to escalate. Without drift monitoring, this would have taken weeks to surface.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">4</span> Step-by-Step: What to Monitor</h2>
+<ol>
+  <li><strong>Operational Metrics (standard):</strong> Request latency (p50, p95, p99), error rate (4xx, 5xx), throughput (requests/second), and resource utilization (GPU/CPU memory). These alert you when the system is broken.</li>
+  <li><strong>Input Distribution Monitoring:</strong> Track the statistical properties of incoming features — mean, standard deviation, min/max, null rates, and categorical frequencies. Compare to training data baselines. A sudden shift in the distribution of "user age" or "transaction amount" signals that the world has changed.</li>
+  <li><strong>Output Distribution Monitoring:</strong> Track your model's prediction distribution over time. If a binary classifier that used to output 5% positive predictions suddenly starts outputting 40%, something has changed — either the world, the model, or the data pipeline.</li>
+  <li><strong>Ground Truth Monitoring (when available):</strong> Log predictions and, when the real outcome is eventually known (loan repaid/defaulted, churn/retained), compute actual accuracy, precision, and recall in production. Compare to training benchmarks.</li>
+  <li><strong>LLM-Specific Monitoring:</strong> For language models, track: prompt lengths, token costs per request, refusal rates, hallucination scores (using an evaluator LLM), response latency, and user satisfaction signals (thumbs up/down, session continuation).</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># pip install prometheus-client evidently langsmith anthropic</span>
+
+<span class="cm"># ── Operational metrics with Prometheus ──────────────────────────────────────</span>
+<span class="kw">from</span> prometheus_client <span class="kw">import</span> Counter, Histogram, Gauge, start_http_server
+<span class="kw">import</span> time, functools
+
+<span class="cm"># Define metrics</span>
+REQUEST_COUNT    = <span class="cl">Counter</span>(<span class="str">'model_requests_total'</span>, <span class="str">'Total requests'</span>, [<span class="str">'endpoint'</span>, <span class="str">'status'</span>])
+REQUEST_LATENCY  = <span class="cl">Histogram</span>(<span class="str">'model_latency_seconds'</span>, <span class="str">'Request latency'</span>, [<span class="str">'endpoint'</span>])
+PREDICTION_DIST  = <span class="cl">Counter</span>(<span class="str">'model_predictions_total'</span>, <span class="str">'Prediction class counts'</span>, [<span class="str">'predicted_class'</span>])
+TOKEN_USAGE      = <span class="cl">Counter</span>(<span class="str">'llm_tokens_total'</span>, <span class="str">'LLM token usage'</span>, [<span class="str">'model'</span>, <span class="str">'type'</span>])
+
+<span class="kw">def</span> <span class="fn">monitor_prediction</span>(endpoint: str):
+    <span class="str">"""Decorator that tracks latency and error rate for any model endpoint."""</span>
+    <span class="kw">def</span> <span class="fn">decorator</span>(func):
+        @functools.<span class="fn">wraps</span>(func)
+        <span class="kw">def</span> <span class="fn">wrapper</span>(*args, **kwargs):
+            start = time.<span class="fn">time</span>()
+            status = <span class="str">"success"</span>
+            <span class="kw">try</span>:
+                result = func(*args, **kwargs)
+                <span class="kw">return</span> result
+            <span class="kw">except</span> <span class="cl">Exception</span> <span class="kw">as</span> e:
+                status = <span class="str">"error"</span>
+                <span class="kw">raise</span>
+            <span class="kw">finally</span>:
+                REQUEST_LATENCY.<span class="fn">labels</span>(endpoint=endpoint).<span class="fn">observe</span>(time.<span class="fn">time</span>() - start)
+                REQUEST_COUNT.<span class="fn">labels</span>(endpoint=endpoint, status=status).<span class="fn">inc</span>()
+        <span class="kw">return</span> wrapper
+    <span class="kw">return</span> decorator
+
+<span class="cm"># ── Data drift detection with Evidently ──────────────────────────────────────</span>
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> evidently.report <span class="kw">import</span> Report
+<span class="kw">from</span> evidently.metric_preset <span class="kw">import</span> DataDriftPreset
+
+<span class="kw">def</span> <span class="fn">check_drift</span>(reference_df: pd.DataFrame, current_df: pd.DataFrame) -> dict:
+    <span class="str">"""Compare current data distribution against training baseline."""</span>
+    report = <span class="cl">Report</span>(metrics=[<span class="cl">DataDriftPreset</span>()])
+    report.<span class="fn">run</span>(reference_data=reference_df, current_data=current_df)
+    results = report.<span class="fn">as_dict</span>()
+    
+    drift_summary = results[<span class="str">'metrics'</span>][<span class="num">0</span>][<span class="str">'result'</span>]
+    <span class="fn">print</span>(<span class="str">f"Dataset drift detected: &#123;drift_summary['dataset_drift']&#125;"</span>)
+    <span class="fn">print</span>(<span class="str">f"Drifted features: &#123;drift_summary['number_of_drifted_columns']&#125; / &#123;drift_summary['number_of_columns']&#125;"</span>)
+    <span class="kw">return</span> drift_summary
+
+<span class="cm"># ── LLM tracing with LangSmith ────────────────────────────────────────────────</span>
+<span class="kw">import</span> os
+<span class="kw">from</span> langsmith <span class="kw">import</span> Client
+<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+
+os.environ[<span class="str">"LANGCHAIN_TRACING_V2"</span>] = <span class="str">"true"</span>
+os.environ[<span class="str">"LANGCHAIN_API_KEY"</span>]    = <span class="str">"your-langsmith-key"</span>
+os.environ[<span class="str">"LANGCHAIN_PROJECT"</span>]    = <span class="str">"production-ai-app"</span>
+
+<span class="cm"># With tracing enabled, every LangChain call is automatically logged</span>
+<span class="cm"># to LangSmith — input, output, latency, token usage, model version</span>
+
+<span class="cm"># ── LLM quality monitoring — automated hallucination detection ────────────────</span>
+client = <span class="cl">Anthropic</span>()
+
+<span class="kw">def</span> <span class="fn">evaluate_faithfulness</span>(context: str, response: str) -> float:
+    <span class="str">"""Use an LLM as a judge to score factual grounding (0-1)."""</span>
+    prompt = <span class="str">f"""Rate whether this response is fully supported by the context.
+    
+Context: &#123;context&#125;
+Response: &#123;response&#125;
+
+Score from 0.0 (hallucinated) to 1.0 (fully grounded). 
+Reply with ONLY a float number."""</span>
+    
+    result = client.messages.<span class="fn">create</span>(
+        model=<span class="str">"claude-haiku-4-5-20251001"</span>,
+        max_tokens=<span class="num">10</span>,
+        messages=[&#123;<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: prompt&#125;]
+    )
+    <span class="kw">try</span>:
+        <span class="kw">return</span> float(result.content[<span class="num">0</span>].text.<span class="fn">strip</span>())
+    <span class="kw">except</span> ValueError:
+        <span class="kw">return</span> <span class="num">0.5</span>  <span class="cm"># default on parse error</span>
+
+score = <span class="fn">evaluate_faithfulness</span>(
+    context=<span class="str">"Our refund window is 30 days."</span>,
+    response=<span class="str">"You can return items within 60 days."</span>
+)
+<span class="fn">print</span>(<span class="str">f"Faithfulness score: &#123;score:.2f&#125;"</span>)  <span class="cm"># → 0.0 (hallucinated!)</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+AI MONITORING STACK — COMPLETE PICTURE
+
+  INCOMING REQUESTS
+       │
+  ┌────▼──────────────────────────────────────────────────┐
+  │  OPERATIONAL MONITORING (Prometheus + Grafana)        │
+  │  • Latency p50/p95/p99                                │
+  │  • Error rate (4xx, 5xx)                              │
+  │  • Throughput (req/sec)                               │
+  │  • GPU/CPU utilization                                │
+  │  Alert if: latency > threshold OR error_rate > 1%     │
+  └────┬──────────────────────────────────────────────────┘
+       │
+  ┌────▼──────────────────────────────────────────────────┐
+  │  INPUT DRIFT MONITORING (Evidently / WhyLabs)         │
+  │  • Log every inference request features               │
+  │  • Run statistical tests vs. training baseline        │
+  │  • KS test, PSI, Jensen-Shannon divergence            │
+  │  Alert if: feature distribution shifts > threshold    │
+  └────┬──────────────────────────────────────────────────┘
+       │
+  ┌────▼──────────────────────────────────────────────────┐
+  │  OUTPUT / PREDICTION MONITORING                       │
+  │  • Track prediction class distribution                │
+  │  • Track confidence score distribution                │
+  │  Alert if: output distribution shifts significantly   │
+  └────┬──────────────────────────────────────────────────┘
+       │
+  ┌────▼──────────────────────────────────────────────────┐
+  │  LLM-SPECIFIC MONITORING (LangSmith / Arize)          │
+  │  • Trace every prompt/response pair                   │
+  │  • Token cost per request                             │
+  │  • Faithfulness / hallucination scores                │
+  │  • User satisfaction feedback                         │
+  │  • Refusal rate                                       │
+  └───────────────────────────────────────────────────────┘
+
+DATA DRIFT TYPES:
+  Covariate Drift:   P(X) changes     — input dist shifts
+  Label Drift:       P(Y) changes     — target dist shifts  
+  Concept Drift:     P(Y|X) changes   — relationship changes ← hardest!
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">7</span> Practical Use Cases</h2>
+<p><strong>Fraud model degradation detection:</strong> A fraud detection model trained in Q1 starts seeing new fraud patterns in Q3 (gift card fraud replaces credit card fraud). Input distribution monitoring detects the shift in transaction category features, triggering a retraining alert before the model's recall drops below the business threshold.</p>
+<p><strong>LLM chatbot quality tracking:</strong> A customer service LLM is monitored for response faithfulness (score vs. knowledge base), refusal rate (how often it says "I don't know"), average token cost per query, and user thumbs-down rate. Dashboards show weekly trends and alert when any metric crosses a threshold.</p>
+<p><strong>A/B model comparison:</strong> When rolling out a new model version to 10% of traffic, monitoring tracks whether the new model's latency, error rate, accuracy, and user satisfaction metrics are statistically better than the champion model before making the full rollout decision.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Only monitoring infrastructure, not model quality:</strong> Datadog and New Relic are great for latency and error rates, but they cannot tell you that your recommendation model is now suggesting irrelevant content or that your chatbot is hallucinating. You need model-specific monitoring tools alongside standard APM.</div>
+<div class="callout warn">⚠️ <strong>Not establishing baselines before deployment:</strong> Drift detection requires a reference distribution to compare against. Establish statistical baselines from your training/validation data before launch — you cannot retroactively compute drift without a baseline.</div>
+<div class="callout danger">❌ <strong>Alert fatigue from overly sensitive thresholds:</strong> Setting drift alerts that fire on every minor fluctuation trains your team to ignore them. Use statistical significance tests (p-value thresholds) and moving averages to alert only on sustained, meaningful shifts.</div>
+<div class="callout warn">⚠️ <strong>Not logging enough context for debugging:</strong> When a monitoring alert fires, you need to be able to reproduce the problem. Log the model version, input features, prediction, confidence scores, and timestamp for a sample of every request. Without this, debugging production incidents is nearly impossible.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain the difference between data drift, concept drift, and covariate drift. Give a real-world example of each.</li>
+  <li>A model's accuracy was 94% on the test set but drops to 71% in production within 3 months. What are the most likely causes and how do you diagnose them?</li>
+  <li>How do you monitor the quality of an LLM-based application? What metrics matter and how do you compute them without ground truth labels?</li>
+  <li>What is "shadow mode" deployment and how does it help you validate a new model version before sending real traffic to it?</li>
+  <li>Describe a monitoring architecture for a high-traffic fraud detection model. What would you monitor, how often, and what alerts would you set up?</li>
+  <li>What statistical tests would you use to detect input feature drift, and what are the tradeoffs between them?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-monitoring">
+  <li onclick="toggleTask(this)">Set up Prometheus metrics for a FastAPI model endpoint. Track request count, latency histogram, and prediction class distribution. Build a Grafana dashboard that shows all three metrics.</li>
+  <li onclick="toggleTask(this)">Use the Evidently library to generate a Data Drift report comparing two Pandas DataFrames (simulate drift by shifting the mean of a numeric column by 2 standard deviations). Identify which features drifted.</li>
+  <li onclick="toggleTask(this)">Build an LLM-as-judge evaluator that scores 20 chatbot responses for faithfulness (0-1) against their source context. Log results to a CSV and compute the weekly mean faithfulness score.</li>
+  <li onclick="toggleTask(this)">Implement a simple prediction logger that stores 1% of incoming requests (input features, output prediction, timestamp, model version) to a SQLite database. Write a query that detects when the output class distribution shifts by more than 20%.</li>
+  <li onclick="toggleTask(this)">Set up LangSmith tracing for a LangChain RAG chain. Run 50 test queries and use the LangSmith dashboard to identify: the slowest step, the highest token cost query, and any failed runs.</li>
+</ul>

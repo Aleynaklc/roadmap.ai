@@ -1,0 +1,122 @@
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">1</span> Simple Explanation</h2>
+<p><strong>Bias & Fairness</strong> in AI refers to the pursuit of objective, equitable machine learning systems where models perform equally well across different demographic groups, regardless of race, gender, age, or socioeconomic status. An AI system is considered <em>biased</em> when its predictions, decisions, or generations disproportionately negatively impact specific groups of people.</p>
+<p>Because models learn by identifying patterns in historical data, they inherently internalize the prejudices, historical inequities, and sampling biases present in that data. If left unaddressed, models don't just replicate these historical biases; they often amplify them due to statistical tendencies towards the majority class. Fairness in AI is the active, mathematical, and architectural effort to mitigate these learned biases to ensure the technology doesn't perpetuate discrimination.</p>
+<p>Unlike purely technical bugs, bias is subtle. A model might achieve 95% accuracy overall but silently fail for a specific 5% minority group. Discovering and fixing these discrepancies requires looking beyond aggregate metrics and adopting a socio-technical approach to machine learning.</p>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">2</span> Why It Matters for AI Engineers</h2>
+<p>Deploying a biased model has catastrophic consequences for users, businesses, and engineering teams. In regulated sectors like finance (lending), healthcare (diagnostics), hiring (resume screening), and criminal justice (parole prediction), algorithmic bias leads directly to ruined lives, legal liabilities, and massive reputational damage.</p>
+<p>Modern AI engineers are legally and ethically obligated to audit their systems. Laws like the EU AI Act specifically mandate fairness testing. Relying on "blinding" (simply removing demographic features like gender from the data) does not work because other features can act as <strong>proxies</strong> (e.g., zip code can correlate heavily with race). Treating bias as an afterthought will fundamentally break the trust between humans and the intelligent systems you build.</p>
+<div class="tag-row"><span class="tag">Algorithmic Bias</span><span class="tag">Fairness Metrics</span><span class="tag">Proxy Variables</span><span class="tag">Disparate Impact</span><span class="tag">Recalibration</span></div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">3</span> Real-World Example</h2>
+<p><strong>Amazon's AI Recruiting Tool (2018)</strong></p>
+<p>Amazon built an internal AI system to automate tech hiring by scoring resumes from one to five stars. The model was trained on a decade of resumes submitted to the company. Because the tech industry has historically been male-dominated, most of the resumes in the training data belonged to men. The AI "learned" that male candidates were preferable.</p>
+<p>The system began penalizing resumes that included the word "women's" (e.g., "women's chess club captain") and downgraded graduates of two all-women's colleges. Even when developers removed explicit gender words, the model found ways to proxy gender through implicit language like verbs used more commonly by male engineers. Amazon ultimately had to scrap the project. This incident is a classic demonstration of historical bias encoding and proxy variable issues.</p>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">4</span> Step-by-Step: Types of Bias and Mitigation</h2>
+<ol>
+  <li><strong>Historical Bias:</strong> Exists in the world even with perfect sampling. E.g., CEO images are predominantly male because historically, most CEOs were male. <em>Mitigation:</em> Over-sampling underrepresented groups or using synthetic data.</li>
+  <li><strong>Representation Bias:</strong> Your training dataset doesn't reflect the target population. E.g., training a skin cancer detector mostly on light-skinned patients. <em>Mitigation:</em> Targeted data collection protocols prioritizing demographic parity.</li>
+  <li><strong>Measurement Bias:</strong> Flaws in how features and labels are defined or collected. E.g., using "arrests" as a proxy for "crime rates" incorporates policing bias. <em>Mitigation:</em> Careful label definition and relying on more objective proxies.</li>
+  <li><strong>Aggregation Bias:</strong> A single model is forced to fit distinct groups with completely different underlying distributions. <em>Mitigation:</em> Training separate models per sub-population or deeply conditioning on group identifiers safely.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Demonstrating fairness auditing using Fairlearn</span>
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> sklearn.model_selection <span class="kw">import</span> train_test_split
+<span class="kw">from</span> sklearn.ensemble <span class="kw">import</span> RandomForestClassifier
+<span class="kw">from</span> sklearn.metrics <span class="kw">import</span> accuracy_score
+<span class="kw">from</span> fairlearn.metrics <span class="kw">import</span> MetricFrame, selection_rate, demographic_parity_difference
+
+<span class="cm"># 1. Load data (simulated dataset for loan approvals)</span>
+<span class="cm"># Features: income, credit_score. Sensitive attribute: gender (Male/Female)</span>
+data = pd.<span class="fn">read_csv</span>(<span class="str">"loan_applications.csv"</span>)
+X = data[[<span class="str">"income"</span>, <span class="str">"credit_score"</span>]]
+y_true = data[<span class="str">"approved"</span>]
+sensitive_features = data[<span class="str">"gender"</span>]
+
+<span class="cm"># 2. Train a standard model</span>
+X_train, X_test, y_train, y_test, sf_train, sf_test = <span class="fn">train_test_split</span>(
+    X, y_true, sensitive_features, test_size=<span class="num">0.2</span>, random_state=<span class="num">42</span>
+)
+model = <span class="cl">RandomForestClassifier</span>().<span class="fn">fit</span>(X_train, y_train)
+y_pred = model.<span class="fn">predict</span>(X_test)
+
+<span class="cm"># 3. Overall Accuracy check (Often hides bias!)</span>
+accuracy = <span class="fn">accuracy_score</span>(y_test, y_pred)
+print(<span class="str">f"Overall Accuracy: &#123;accuracy:.2f&#125;"</span>)
+
+<span class="cm"># 4. Fairness Audit using Fairlearn </span>
+<span class="cm"># Compute the selection rate (approval rate) for each group in the sensitive feature</span>
+metrics = <span class="cl">MetricFrame</span>(
+    metrics=selection_rate,
+    y_true=y_test,
+    y_pred=y_pred,
+    sensitive_features=sf_test
+)
+
+print(<span class="str">"\nSelection Rate by Gender:"</span>)
+print(metrics.by_group)
+
+<span class="cm"># Calculate Demographic Parity Difference</span>
+<span class="cm"># E.g. | P(approved | Male) - P(approved | Female) |</span>
+dp_diff = <span class="fn">demographic_parity_difference</span>(
+    y_true, y_pred, sensitive_features=sf_test
+)
+print(<span class="str">f"\nDemographic Parity Difference: &#123;dp_diff:.4f&#125;"</span>)
+
+<span class="cm"># If dp_diff is high (e.g., > 0.1), the model is heavily biased in favor of one group.</span>
+<span class="cm"># Next steps would involve bias mitigation techniques like ExponentiatedGradient.</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+THE ILLUSION OF AGGREGATE METRICS
+
+Overall Performance: 90% Accuracy (Looks great!)
+
+But let's dissect by Sub-Population:
+
+Group A (80% of data) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 95% Accuracy
+Group B (15% of data) ━━━━━━━━━━━━━━━ 75% Accuracy 
+Group C ( 5% of data) ━━ 30% Accuracy (CRITICAL FAILURE)
+
+Bias Mitigation Requires:
+1. Awareness: Tracking sensitive features during validation (not hiding them).
+2. Slicing: Calculating metrics (F1, Recall, False Positive Rate) PER group.
+3. Intervention:
+   [Pre-processing]  ➔ Resampling data, reweighting minority samples
+   [In-processing]   ➔ Adding fairness constraints to the loss function
+   [Post-processing] ➔ Threshold adjustment per group to equalize odds
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">7</span> Practical Use Cases</h2>
+<p><strong>Resume Screening Systems:</strong> Auditing models to ensure the selection rate for candidates doesn't unfairly punish specific demographic groups. If historical training data prefers one demographic, engineers use algorithms to debias the vectors or penalize demographic correlations during training.</p>
+<p><strong>Facial Recognition:</strong> Historic facial recognition algorithms proved biased when tested on diverse groups — they operated flawlessly on lighter-skinned males but suffered huge failure rates for darker-skinned females. Practical application involves robustly curating diverse datasets to ensure representation parity for all intersectional demographics.</p>
+<p><strong>Credit Lending:</strong> Models making financial decisions are heavily scrutinized by regulators. Engineers use tools like Aequitas or Fairlearn to guarantee <em>Equal Opportunity</em>, ensuring the True Positive Rate of loan repayment is equal across protected classes.</p>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Fairness Through Unawareness (Blinding):</strong> Simply deleting the "Race" or "Gender" column from your dataset. This fails completely because models learn proxy variables (like zip code, schooling, or browsing habits) which highly correlate with the omitted sensitive features. You must intentionally measure against sensitive attributes to prove fairness.</div>
+<div class="callout danger">❌ <strong>Relying exclusively on Aggregate Metrics:</strong> Checking overall accuracy ignores the experience of marginalized edge cases. Always evaluate using sliced metrics.</div>
+<div class="callout warn">⚠️ <strong>Assuming One Definition of Fairness:</strong> Mathematical fairness metrics (Demographic Parity, Equalized Odds, Predictive Rate Parity) often contradict each other. You cannot satisfy all mathematical fairness definitions simultaneously. Engineers must work with domain experts to decide which fairness metric accurately represents equity for the specific use case.</div>
+<div class="callout danger">❌ <strong>Blaming the Algorithm:</strong> Models don't invent biases; they reflect the data. Bias is a systemic problem requiring data-centric solutions, not just architectural tweaks.</div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What does "fairness through unawareness" mean, and why is it an ineffective strategy for mitigating bias?</li>
+  <li>Explain the difference between Demographic Parity and Equal Opportunity. In a criminal recidivism model, which would you optimize for and why?</li>
+  <li>Can you mathematically satisfy both Equalized Odds and Calibration simultaneously across groups with different base rates? Why or why not?</li>
+  <li>Walk me through the steps you would take to audit a newly trained image classification model for gender and racial biases.</li>
+  <li>What are "proxy variables," and how do they complicate algorithmic fairness?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-bias">
+  <li onclick="toggleTask(this)">Download an open-source HR dataset and purposefully train a naive classification model. Test it against disparate impact metrics to identify underlying issues.</li>
+  <li onclick="toggleTask(this)">Write a Python function that computes Demographic Parity and Equalized Odds manually derived from a confusion matrix for two distinct groups.</li>
+  <li onclick="toggleTask(this)">Implement a pre-processing debiasing technique by calculating and applying class weights inverse to the demographic distribution of a heavily skewed dataset.</li>
+  <li onclick="toggleTask(this)">Install Microsoft's `fairlearn` library and run their dashboard on a popular dataset like Adult Census Income to visualize the fairness-accuracy tradeoff.</li>
+</ul>

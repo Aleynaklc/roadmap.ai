@@ -1,0 +1,171 @@
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">1</span> Simple Explanation</h2>
+<p><strong>FastAPI</strong> is a modern Python web framework for building APIs — and it has become the de facto standard for deploying AI models and services in production. It combines the simplicity of Flask with automatic data validation, auto-generated documentation, async support, and performance that rivals Go and Node.js. When you build an AI feature — a chatbot, an image classifier, a RAG system — FastAPI is typically how you expose it to the world.</p>
+<p>The name isn't just marketing. FastAPI is fast to write (minimal boilerplate), fast to run (built on Starlette and Uvicorn, one of the fastest ASGI frameworks), and fast to document (Swagger UI appears automatically at <code>/docs</code>). It uses Python type hints for everything — function signatures are the API specification, and Pydantic models are the data contract. If you annotate correctly, FastAPI handles validation, serialization, and error messages automatically.</p>
+<div class="callout">💡 <strong>Key insight:</strong> FastAPI uses Python's type hint system as its primary API — not decorators, not XML config, not YAML. When you write <code>def predict(request: PredictRequest) -> PredictResponse</code>, FastAPI reads the types, generates the OpenAPI spec, validates incoming JSON against PredictRequest, and serializes the output as PredictResponse — all automatically. The type system IS the API contract.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">2</span> Why It Matters for AI Engineers</h2>
+<p>Every AI model you build eventually needs to serve predictions to something — a frontend app, a mobile client, another service, or a third party. FastAPI is how you do that in Python. It handles HTTP, JSON serialization, authentication, background tasks, and file uploads — everything you need to turn a Jupyter notebook experiment into a production service. Its async support is critical for AI workloads: while the model is processing one request, the server can accept hundreds of others without blocking.</p>
+<div class="tag-row"><span class="tag">ASGI</span><span class="tag">Pydantic</span><span class="tag">Async</span><span class="tag">Swagger UI</span><span class="tag">Background Tasks</span><span class="tag">Uvicorn</span></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">3</span> Real-World Example</h2>
+<p><strong>Hugging Face Inference Endpoints</strong></p>
+<p>Hugging Face's hosted inference service — which serves billions of model predictions — is built on FastAPI under the hood. When you call their inference API, a FastAPI endpoint receives your request, validates the payload with Pydantic, queues the job if the model is busy, runs inference asynchronously, and returns the result with proper HTTP status codes and headers. Their streaming endpoints use FastAPI's <code>StreamingResponse</code> to push tokens back to the client as soon as they're generated. The entire developer experience — consistent JSON schemas, helpful error messages, automatic versioning — comes from FastAPI's opinionated structure.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Define your data models with Pydantic:</strong> Create request and response classes inheriting from <code>BaseModel</code>. Every field gets a type, optional default, and automatic validation. Pydantic will reject malformed requests with descriptive error messages before your code even runs.</li>
+  <li><strong>Create the FastAPI app and routes:</strong> Instantiate <code>FastAPI()</code> and decorate functions with <code>@app.post("/predict")</code>. The function's return value is automatically serialized to JSON.</li>
+  <li><strong>Add dependency injection:</strong> FastAPI's <code>Depends()</code> system lets you share resources (database connections, loaded models, authenticated users) across endpoints without global state.</li>
+  <li><strong>Load the model once at startup:</strong> Use <code>@app.on_event("startup")</code> or lifespan context managers to load heavy models once when the server starts — not on every request.</li>
+  <li><strong>Run with Uvicorn:</strong> <code>uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4</code> starts the server. Use multiple workers for CPU-bound tasks; for async/GPU work, a single worker with async is often better.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># pip install fastapi uvicorn pydantic openai</span>
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, HTTPException, BackgroundTasks, Depends
+<span class="kw">from</span> fastapi.responses <span class="kw">import</span> StreamingResponse
+<span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel, Field
+<span class="kw">from</span> contextlib <span class="kw">import</span> asynccontextmanager
+<span class="kw">from</span> openai <span class="kw">import</span> AsyncOpenAI
+<span class="kw">import</span> asyncio
+
+<span class="cm"># ── Data models ───────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="cl">ChatRequest</span>(BaseModel):
+    message: str = Field(..., min_length=<span class="num">1</span>, max_length=<span class="num">10000</span>)
+    model: str = Field(default=<span class="str">"gpt-4o-mini"</span>)
+    temperature: float = Field(default=<span class="num">0.7</span>, ge=<span class="num">0.0</span>, le=<span class="num">2.0</span>)
+
+<span class="kw">class</span> <span class="cl">ChatResponse</span>(BaseModel):
+    reply: str
+    model: str
+    tokens_used: int
+
+<span class="kw">class</span> <span class="cl">ClassifyRequest</span>(BaseModel):
+    text: str
+    labels: list[str] = Field(min_length=<span class="num">2</span>)
+
+<span class="cm"># ── App with lifespan (model loaded once at startup) ──────</span>
+ai_client = <span class="kw">None</span>
+
+@asynccontextmanager
+<span class="kw">async def</span> <span class="fn">lifespan</span>(app: FastAPI):
+    <span class="kw">global</span> ai_client
+    <span class="fn">print</span>(<span class="str">"Loading AI client..."</span>)
+    ai_client = <span class="cl">AsyncOpenAI</span>()      <span class="cm"># initialized once, reused for every request</span>
+    <span class="kw">yield</span>
+    <span class="fn">print</span>(<span class="str">"Shutting down."</span>)
+
+app = <span class="cl">FastAPI</span>(title=<span class="str">"AI Service"</span>, version=<span class="str">"1.0.0"</span>, lifespan=lifespan)
+
+<span class="cm"># ── Basic chat endpoint ───────────────────────────────────</span>
+@app.<span class="fn">post</span>(<span class="str">"/chat"</span>, response_model=<span class="cl">ChatResponse</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(request: <span class="cl">ChatRequest</span>):
+    <span class="kw">try</span>:
+        response = <span class="kw">await</span> ai_client.chat.completions.<span class="fn">create</span>(
+            model=request.model,
+            messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: request.message}],
+            temperature=request.temperature,
+            max_tokens=<span class="num">1024</span>,
+        )
+        <span class="kw">return</span> <span class="cl">ChatResponse</span>(
+            reply=response.choices[<span class="num">0</span>].message.content,
+            model=response.model,
+            tokens_used=response.usage.total_tokens,
+        )
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="kw">raise</span> <span class="cl">HTTPException</span>(status_code=<span class="num">500</span>, detail=<span class="fn">str</span>(e))
+
+<span class="cm"># ── Streaming endpoint ────────────────────────────────────</span>
+@app.<span class="fn">post</span>(<span class="str">"/chat/stream"</span>)
+<span class="kw">async def</span> <span class="fn">chat_stream</span>(request: <span class="cl">ChatRequest</span>):
+    <span class="kw">async def</span> <span class="fn">token_generator</span>():
+        <span class="kw">async with</span> ai_client.chat.completions.<span class="fn">stream</span>(
+            model=request.model,
+            messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: request.message}]
+        ) <span class="kw">as</span> stream:
+            <span class="kw">async for</span> chunk <span class="kw">in</span> stream:
+                delta = chunk.choices[<span class="num">0</span>].delta.content <span class="kw">or</span> <span class="str">""</span>
+                <span class="kw">if</span> delta:
+                    <span class="kw">yield</span> delta
+
+    <span class="kw">return</span> <span class="cl">StreamingResponse</span>(<span class="fn">token_generator</span>(), media_type=<span class="str">"text/plain"</span>)
+
+<span class="cm"># ── Health check ──────────────────────────────────────────</span>
+@app.<span class="fn">get</span>(<span class="str">"/health"</span>)
+<span class="kw">async def</span> <span class="fn">health</span>():
+    <span class="kw">return</span> {<span class="str">"status"</span>: <span class="str">"ok"</span>, <span class="str">"service"</span>: <span class="str">"ai-api"</span>}
+
+<span class="cm"># Run: uvicorn app:app --reload --port 8000</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+FASTAPI REQUEST LIFECYCLE
+
+  HTTP POST /chat
+  Body: {"message": "Hello", "temperature": 0.9}
+         │
+         ▼
+  FastAPI Router matches route → calls chat()
+         │
+         ▼  Pydantic validates the body
+  ChatRequest(message="Hello", temperature=0.9, model="gpt-4o-mini")
+  ✓ message: str ✓ temperature: 0.0–2.0 ✓ model: str
+         │
+         ▼  Your async function runs
+  await openai.chat.completions.create(...)
+  (non-blocking — other requests served while waiting)
+         │
+         ▼  Pydantic serializes the return value
+  ChatResponse → JSON {"reply": "...", "tokens_used": 42}
+         │
+         ▼
+  HTTP 200 OK  {"reply": "...", "tokens_used": 42}
+
+AUTO-GENERATED DOCS:
+  http://localhost:8000/docs  → Swagger UI  (interactive)
+  http://localhost:8000/redoc → ReDoc       (readable)
+  http://localhost:8000/openapi.json → Raw OpenAPI spec
+
+PYDANTIC VALIDATION ERRORS (automatic):
+  POST /chat {"message": "", "temperature": 5.0}
+  → 422 Unprocessable Entity
+  {
+    "detail": [
+      {"loc": ["body","message"], "msg": "min_length 1"},
+      {"loc": ["body","temperature"], "msg": "le than 2.0"}
+    ]
+  }
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">7</span> Practical Use Cases</h2>
+<p><strong>Model serving with versioning:</strong> Deploy multiple model versions simultaneously at <code>/v1/predict</code> and <code>/v2/predict</code>. Route a percentage of traffic to the new model for A/B testing while keeping the old version as the default. FastAPI routers make multi-version APIs trivial to maintain.</p>
+<p><strong>Async batch processing:</strong> Accept a batch of 50 documents for summarization. FastAPI's background tasks let you return an immediate <code>202 Accepted</code> with a job ID, process the batch asynchronously, and make the results available at a polling endpoint. This prevents client timeouts on expensive AI operations.</p>
+<p><strong>Webhook handler for AI pipelines:</strong> Receive events from external services (file uploads, form submissions, database changes), trigger AI processing (OCR, classification, embedding), and post results to downstream services — all in a clean async FastAPI handler that handles retries and idempotency.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Loading models inside request handlers:</strong> Loading a 2GB model on every API call makes your endpoint take 30+ seconds and crashes under any real traffic. Load heavy models once at startup using the lifespan context manager or <code>@app.on_event("startup")</code>.</div>
+<div class="callout warn">⚠️ <strong>Using sync functions for async work:</strong> Calling a synchronous blocking function inside an <code>async def</code> handler (like <code>time.sleep()</code> or a sync HTTP call) blocks the entire event loop. Use <code>await asyncio.sleep()</code> and async HTTP clients like <code>httpx.AsyncClient</code>.</div>
+<div class="callout danger">❌ <strong>Not using response_model:</strong> Without <code>response_model</code>, FastAPI returns whatever your function returns with no validation. Sensitive internal fields (passwords, tokens, internal IDs) can accidentally leak. Always define and use a response model to explicitly control what gets serialized.</div>
+<div class="callout warn">⚠️ <strong>Ignoring CORS for frontend integrations:</strong> When a browser calls your API from a different domain, it will be blocked by CORS unless you configure it. Add <code>CORSMiddleware</code> with explicit allowed origins — never use <code>allow_origins=["*"]</code> in production for authenticated endpoints.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between ASGI and WSGI? Why does FastAPI use ASGI and why does it matter for AI workloads?</li>
+  <li>Explain how Pydantic validates request bodies in FastAPI. What happens when validation fails?</li>
+  <li>How would you load a large ML model efficiently in a FastAPI app to avoid reloading it on every request?</li>
+  <li>What is the difference between <code>async def</code> and <code>def</code> in a FastAPI route handler? When does it matter?</li>
+  <li>How would you add authentication to a FastAPI endpoint? Describe the Depends() pattern.</li>
+  <li>Explain FastAPI's <code>BackgroundTasks</code>. How would you use it to handle a long-running inference job without blocking the response?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-fastapi">
+  <li onclick="toggleTask(this)">Build a FastAPI service with a <code>/summarize</code> endpoint that accepts a text field (Pydantic model) and returns a GPT-4o-mini summary. Test with curl and the auto-generated Swagger UI.</li>
+  <li onclick="toggleTask(this)">Add a <code>/classify</code> endpoint that accepts text and a list of labels, and uses zero-shot classification to pick the best label. Add proper validation (min 2 labels, max 500 char text).</li>
+  <li onclick="toggleTask(this)">Implement a streaming chat endpoint using <code>StreamingResponse</code>. Use curl with <code>--no-buffer</code> to verify tokens arrive incrementally, not all at once.</li>
+  <li onclick="toggleTask(this)">Add API key authentication using FastAPI's <code>HTTPBearer</code> security scheme. Return 401 for missing/invalid keys. Test that unauthenticated requests are rejected.</li>
+  <li onclick="toggleTask(this)">Load a sentence-transformers model at startup. Build a <code>/embed</code> endpoint that accepts a list of up to 10 strings and returns their embeddings. Benchmark latency with locust or wrk.</li>
+</ul>

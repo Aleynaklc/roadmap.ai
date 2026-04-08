@@ -1,0 +1,111 @@
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">1</span> Simple Explanation</h2>
+<p><strong>AI Security</strong> is the discipline of protecting artificial intelligence models, data, and pipelines from malicious manipulation, extraction, or abuse. Just as traditional cybersecurity protects networks and servers, AI security protects the neural weights, training environments, and inference endpoints of machine learning systems.</p>
+<p>Because AI models are complex statistical engines, they have unique attack surfaces. An attacker might subtly alter training data so the model learns a disguised backdoor, algorithmically query a model to steal its underlying intellectual property, or craft noisy inputs that look normal to human eyes but cause catastrophic failures for the model. Securing AI requires understanding both the software architecture wrapping the model and the mathematical vulnerabilities inside the model itself.</p>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">2</span> Why It Matters for AI Engineers</h2>
+<p>As AI is woven into critical infrastructure — autonomous driving, robotic surgery, automated trading, and fraud detection — attacks on AI become matters of life, death, and massive financial loss.</p>
+<p>If you're deploying a proprietary model to a public API, attackers can use "Model Extraction" techniques to clone your millions-of-dollars model for pennies. If you are scraping the web for training data, attackers can poison the data to ensure your model misbehaves on specific future triggers. A robust AI engineer must understand these threat vectors to build resilient systems designed defensively from day one.</p>
+<div class="tag-row"><span class="tag">Adversarial Attacks</span><span class="tag">Data Poisoning</span><span class="tag">Model Extraction</span><span class="tag">Model Inversion</span><span class="tag">Robustness</span></div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">3</span> Real-World Example</h2>
+<p><strong>Stop Sign Adversarial Attack (Physical World Alteration)</strong></p>
+<p>In a famous study, security researchers took a standard stop sign and strategically placed a few small black and white stickers on it. To a human driver, it was undeniably a stop sign with some graffiti. However, to a state-of-the-art vision model used in autonomous vehicles, the specific placement of those stickers altered the pixel gradients just enough that the model confidently classified the stop sign as a "Speed Limit 45" sign.</p>
+<p>This is called an <em>Adversarial Attack</em>. It proved that AI vulnerabilities don’t just exist in digital bits over a network; they can manifest physically in the real world. A self-driving car accelerating through a stop sign because of stickers highlights the urgent need for robust, adversarially-trained models.</p>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">4</span> Step-by-Step: Taxonomy of AI Attacks</h2>
+<ol>
+  <li><strong>Data Poisoning (Training Phase):</strong> Attackers insert bad data into the training set. <em>Goal:</em> Degrade overall performance or implant a backdoor (e.g., "if a picture has this specific yellow watermark, always classify it as a dog").</li>
+  <li><strong>Adversarial Examples (Inference Phase):</strong> Crafting inputs with carefully calculated noise designed to fool the model into making a wrong prediction. The noise is usually imperceptible to humans.</li>
+  <li><strong>Model Extraction/Theft (Inference Phase):</strong> Attackers query your public API repeatedly with carefully chosen inputs and use your model's outputs to train an imitation model locally. <em>Goal:</em> Steal your IP.</li>
+  <li><strong>Model Inversion (Inference Phase):</strong> Exploiting the model's confidence scores to reverse-engineer and reconstruct sensitive data it was trained on (e.g., retrieving actual faces from a facial recognition engine).</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Simulating a Fast Gradient Sign Method (FGSM) Adversarial Attack</span>
+<span class="kw">import</span> torch
+<span class="kw">import</span> torchvision.models <span class="kw">as</span> models
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="kw">def</span> <span class="fn">fgsm_attack</span>(image, epsilon, data_grad):
+    <span class="str">"""
+    Applies adversarial noise to an image using FGSM.
+    epsilon: magnitude of the noise
+    data_grad: the gradient of the loss w.r.t the input image
+    """</span>
+    <span class="cm"># Collect the element-wise sign of the data gradient</span>
+    sign_data_grad = data_grad.<span class="fn">sign</span>()
+    <span class="cm"># Create the perturbed image by adjusting each pixel of the input image</span>
+    perturbed_image = image + epsilon * sign_data_grad
+    <span class="cm"># Adding clipping to maintain valid pixel ranges [0,1]</span>
+    perturbed_image = torch.<span class="fn">clamp</span>(perturbed_image, <span class="num">0</span>, <span class="num">1</span>)
+    <span class="kw">return</span> perturbed_image
+
+<span class="cm"># 1. Load a pre-trained model (e.g., ResNet)</span>
+model = models.<span class="fn">resnet18</span>(pretrained=<span class="kw">True</span>)
+model.<span class="fn">eval</span>() <span class="cm"># Set to evaluation mode</span>
+
+loss_fn = nn.<span class="cl">CrossEntropyLoss</span>()
+
+<span class="cm"># Assume 'input_tensor' is a valid image tensor and 'target_label' is its correct class</span>
+<span class="cm"># input_tensor.requires_grad = True is crucial so we can compute gradients w.r.t pixels</span>
+<span class="cm"># output = model(input_tensor)</span>
+<span class="cm"># init_pred = output.max(1, keepdim=True)[1]</span>
+
+<span class="cm"># Calculate loss</span>
+<span class="cm"># loss = loss_fn(output, target_label)</span>
+<span class="cm"># model.zero_grad()</span>
+<span class="cm"># loss.backward() # Computes gradients of loss w.r.t the INPUT image, not weights!</span>
+
+<span class="cm"># Generate the adversarial image</span>
+<span class="cm"># data_grad = input_tensor.grad.data</span>
+<span class="cm"># perturbed_data = fgsm_attack(input_tensor, epsilon=0.1, data_grad=data_grad)</span>
+
+<span class="cm"># When the model classifies perturbed_data, it will likely output the wrong class</span>
+<span class="cm"># with high confidence, despite looking completely normal to a human.</span></code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+THE ADVERSARIAL GENERATION PROCESS (FGSM)
+
+1. Normal Image:        [  Panda Image  ] -> Neural Network -> Confidence: Panda (99%)
+
+2. Compute Gradient:    Find which direction to shift PIXELS to maximize the loss of the correct class.
+                        (Instead of updating weights, we update the input data)
+
+3. Crafting Noise:      [ Subtle Gradient Map ] x Epsilon (e.g., 0.007)
+
+4. Adversarial Example: [ Panda Image ] + [ Scaled Noise Map ] = [ Altered Panda Image ]
+                        (Looks exactly the same to a human)
+
+5. Fooled Model:        [ Altered Panda Image ] -> Neural Network -> Confidence: Gibbon (99%)
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">7</span> Practical Use Cases</h2>
+<p><strong>Adversarial Training for Self-Driving:</strong> Automotive engineers intentionally generate millions of adversarial and "edge case" perturbed images (like snowy stop signs, misaligned lens flares) and include them in the training dataset to build highly robust CNNs.</p>
+<p><strong>Watermarking Models:</strong> To protect intellectual property, engineers implement "watermarked" features inside models. If a competitor steals the model using API extraction, the engineers can input a secret cryptographic trigger input that forces the stolen model to output the watermark label, proving theft in court.</p>
+<p><strong>API Hardening:</strong> Implementing strict rate limiters, monitoring query behavior mapping (looking for systematic mathematical queries), and rounding off confidence scores so attackers cannot perform gradient descent using the model's raw probability outputs for Model Extraction.</p>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Publishing exact floating-point confidence scores:</strong> Giving users the exact logits/probabilities (e.g., 99.12384%) makes model inversion and model extraction trivial. Round probabilities or only return top-K labels without scores in production APIs.</div>
+<div class="callout danger">❌ <strong>Blindly trusting Open Source Datasets:</strong> Outsiders can commit data poisoning attacks on massive open-source datasets (like Wikipedia or Common Crawl) or buy expired domains linked in popular datasets to inject malicious backdoors into foundational models.</div>
+<div class="callout warn">⚠️ <strong>Assuming network security equals AI security:</strong> A firewall protects your training server. It does absolutely nothing to protect an exposed Inference API from an adversarial attack. AI security is an application-layer problem.</div>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Describe the Fast Gradient Sign Method (FGSM). How is it different from traditional network training?</li>
+  <li>What is data poisoning, and how can teams protect their pipelines when scraping massive web data?</li>
+  <li>A competitor has been submitting 100,000 queries a day to your computer vision API. What type of attack are they likely executing, and how do you mitigate it?</li>
+  <li>How can you protect a facial recognition system against model inversion attacks?</li>
+  <li>Explain the concept of "Adversarial Training" as a defense mechanism. What is its main drawback?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(239,68,68,.15);color:#ef4444">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-aisec">
+  <li onclick="toggleTask(this)">Use the Adversarial Robustness Toolbox (ART) or CleverHans in Python to successfully execute an FGSM attack against a toy MNIST classifier.</li>
+  <li onclick="toggleTask(this)">Implement "Adversarial Training" by adding adversarial examples into the training dataset of your MNIST classifier and observe the improvement in robustness.</li>
+  <li onclick="toggleTask(this)">Write a basic script mimicking an attacker performing model extraction by querying a simple surrogate API and fitting a local Random Forest on the results.</li>
+  <li onclick="toggleTask(this)">Study real-world case studies of data poisoning on Hugging Face models by looking into "BadNets."</li>
+</ul>

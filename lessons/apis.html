@@ -1,0 +1,161 @@
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">1</span> Simple Explanation</h2>
+<p><strong>Model APIs</strong> are the bridge between a trained AI model and the outside world. Instead of running a multi-gigabyte model on your laptop, you send an HTTP request to a cloud endpoint and receive the model's output in milliseconds. Think of it like ordering from a restaurant: you don't need to know the recipe or own the kitchen — you just place an order (the request) and receive the meal (the response).</p>
+<p>Every major AI provider — OpenAI, Anthropic, Google, Cohere, Mistral — exposes their models through REST APIs. The interface is standardized: you send a JSON payload containing your prompt and parameters, and you receive a JSON response containing the model's output, token counts, and metadata. This abstraction lets you build AI-powered applications without managing GPU infrastructure, model weights, or inference pipelines.</p>
+<p>Beyond the hosted API tier, open-source frameworks like <strong>Ollama</strong> and <strong>vLLM</strong> let you self-host models and expose them through an OpenAI-compatible API — giving you the same interface whether you're hitting GPT-4 or running Llama 3 on your own server. Understanding this API layer is the most immediately practical skill for production AI engineering.</p>
+<div class="callout">💡 <strong>Key insight:</strong> The API is not the model. The API is a contract. When you switch from OpenAI to Anthropic, you change the base URL, the auth header, and the message schema — not your application logic. Building your code against an abstraction layer (like LangChain's LLM interface) lets you swap providers with a single line change, which matters enormously when prices drop or a better model is released.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">2</span> Why It Matters for AI Engineers</h2>
+<p>Model APIs are the foundation of every production AI application. Even companies training their own models expose them internally via APIs — the API pattern is universal. You need to understand rate limits, token budgets, streaming, error handling, retry logic, and cost optimization to build reliable systems. A naive implementation that ignores these concerns will fail in production under real traffic within hours of launch.</p>
+<div class="tag-row"><span class="tag">REST API</span><span class="tag">OpenAI SDK</span><span class="tag">Anthropic SDK</span><span class="tag">Streaming</span><span class="tag">Rate Limits</span><span class="tag">Retry Logic</span></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">3</span> Real-World Example</h2>
+<p><strong>GitHub Copilot's API Architecture</strong></p>
+<p>GitHub Copilot processes millions of code completion requests daily. Each keypress in a developer's editor triggers an API call to an LLM. The engineering challenges are immense: they need sub-200ms response times, must handle traffic spikes when the US workday begins, must gracefully degrade when the upstream API is slow, and must track per-user token consumption for billing. GitHub solves this with a dedicated proxy layer that handles authentication, caching of common completions, request batching, and automatic fallback to smaller/faster models when latency exceeds thresholds. All of this complexity sits between the developer's IDE and the model API.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Authentication:</strong> Every API call requires an API key in the Authorization header. Never hardcode keys — use environment variables or a secrets manager. Rotate keys regularly and use separate keys per environment (dev/staging/prod).</li>
+  <li><strong>Request Structure:</strong> A standard chat completion request includes the model name, a list of messages (system + user + assistant turns), and optional parameters like temperature, max_tokens, and stop sequences.</li>
+  <li><strong>Response Parsing:</strong> The response JSON contains the generated content, the stop reason (end of output, max tokens hit, stop sequence matched), and usage statistics (prompt tokens + completion tokens + total tokens).</li>
+  <li><strong>Streaming:</strong> For long responses, streaming sends tokens as they're generated — improving perceived latency dramatically. The client receives a sequence of Server-Sent Events, each containing a delta (the next token or chunk).</li>
+  <li><strong>Error Handling:</strong> APIs return HTTP status codes: 429 (rate limited), 500 (server error), 400 (bad request). Implement exponential backoff with jitter for transient errors. Never retry on 400 — it's a bug in your request.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="kw">import</span> os, time, random
+<span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+<span class="kw">from</span> anthropic <span class="kw">import</span> Anthropic
+
+<span class="cm"># ── Basic OpenAI call ──────────────────────────────────────</span>
+client = <span class="cl">OpenAI</span>(api_key=os.environ[<span class="str">"OPENAI_API_KEY"</span>])
+
+response = client.chat.completions.<span class="fn">create</span>(
+    model=<span class="str">"gpt-4o-mini"</span>,
+    messages=[
+        {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: <span class="str">"You are a helpful assistant."</span>},
+        {<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Explain APIs in one sentence."</span>}
+    ],
+    temperature=<span class="num">0.7</span>,
+    max_tokens=<span class="num">200</span>
+)
+
+text = response.choices[<span class="num">0</span>].message.content
+usage = response.usage
+<span class="fn">print</span>(<span class="str">f"Response: {text}"</span>)
+<span class="fn">print</span>(<span class="str">f"Tokens: {usage.prompt_tokens} prompt + {usage.completion_tokens} completion"</span>)
+
+<span class="cm"># ── Streaming response ────────────────────────────────────</span>
+<span class="kw">with</span> client.chat.completions.<span class="fn">stream</span>(
+    model=<span class="str">"gpt-4o-mini"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Write a haiku about APIs."</span>}]
+) <span class="kw">as</span> stream:
+    <span class="kw">for</span> chunk <span class="kw">in</span> stream:
+        delta = chunk.choices[<span class="num">0</span>].delta.content <span class="kw">or</span> <span class="str">""</span>
+        <span class="fn">print</span>(delta, end=<span class="str">""</span>, flush=<span class="kw">True</span>)
+
+<span class="cm"># ── Exponential backoff retry wrapper ─────────────────────</span>
+<span class="kw">def</span> <span class="fn">call_with_retry</span>(fn, max_retries=<span class="num">5</span>):
+    <span class="str">"""Retry on rate limit and server errors with exponential backoff."""</span>
+    <span class="kw">for</span> attempt <span class="kw">in</span> <span class="fn">range</span>(max_retries):
+        <span class="kw">try</span>:
+            <span class="kw">return</span> <span class="fn">fn</span>()
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">if</span> <span class="str">"rate_limit"</span> <span class="kw">in</span> <span class="fn">str</span>(e).lower() <span class="kw">or</span> <span class="str">"529"</span> <span class="kw">in</span> <span class="fn">str</span>(e):
+                wait = (<span class="num">2</span> ** attempt) + random.<span class="fn">uniform</span>(<span class="num">0</span>, <span class="num">1</span>)
+                <span class="fn">print</span>(<span class="str">f"Rate limited. Waiting {wait:.1f}s..."</span>)
+                time.<span class="fn">sleep</span>(wait)
+            <span class="kw">else</span>:
+                <span class="kw">raise</span>
+    <span class="kw">raise</span> <span class="cl">RuntimeError</span>(<span class="str">"Max retries exceeded"</span>)
+
+<span class="cm"># ── Anthropic API (different schema) ──────────────────────</span>
+anth = <span class="cl">Anthropic</span>()
+msg = anth.messages.<span class="fn">create</span>(
+    model=<span class="str">"claude-haiku-4-5-20251001"</span>,
+    max_tokens=<span class="num">200</span>,
+    system=<span class="str">"You are concise."</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"What is an LLM?"</span>}]
+)
+<span class="fn">print</span>(msg.content[<span class="num">0</span>].text)
+
+<span class="cm"># ── Cost tracker ──────────────────────────────────────────</span>
+PRICE_PER_1K = {<span class="str">"gpt-4o-mini"</span>: (<span class="num">0.00015</span>, <span class="num">0.0006</span>)}  <span class="cm"># (input, output)</span>
+
+<span class="kw">def</span> <span class="fn">estimate_cost</span>(model, prompt_tokens, completion_tokens):
+    inp, out = PRICE_PER_1K.<span class="fn">get</span>(model, (<span class="num">0</span>, <span class="num">0</span>))
+    cost = (prompt_tokens / <span class="num">1000</span>) * inp + (completion_tokens / <span class="num">1000</span>) * out
+    <span class="kw">return</span> <span class="fn">round</span>(cost, <span class="num">6</span>)
+
+<span class="fn">print</span>(<span class="str">f"Estimated cost: ${estimate_cost('gpt-4o-mini', 500, 200)}"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+REST API REQUEST/RESPONSE CYCLE
+
+  Your App                    OpenAI Server
+     │                              │
+     │  POST /v1/chat/completions   │
+     │  Authorization: Bearer sk-…  │
+     │  Content-Type: application/json
+     │  Body: {model, messages, ...}│
+     │ ─────────────────────────────►
+     │                              │  Token counting
+     │                              │  Model inference
+     │                              │  Safety filtering
+     │◄─────────────────────────────│
+     │  200 OK                      │
+     │  {choices, usage, id, ...}   │
+
+STREAMING vs BLOCKING:
+
+  BLOCKING (wait for full response):
+  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│ User waits 3-5s
+  → Full text appears at once
+
+  STREAMING (tokens as generated):
+  ▌ → ▌▌ → ▌▌▌ → ▌▌▌▌▌▌▌▌▌▌▌▌│ User sees output immediately
+  → Text appears word by word, like typing
+
+RATE LIMITS EXPLAINED:
+  ┌─────────────────────────────────────────────┐
+  │  RPM  = Requests Per Minute   (e.g. 500)    │
+  │  TPM  = Tokens Per Minute     (e.g. 150,000)│
+  │  TPD  = Tokens Per Day        (e.g. 1,000,000)
+  │                                             │
+  │  Hit RPM  → wait 60/rpm seconds            │
+  │  Hit TPM  → wait until next minute resets  │
+  └─────────────────────────────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">7</span> Practical Use Cases</h2>
+<p><strong>Multi-provider fallback:</strong> When your primary API (OpenAI) goes down, automatically route requests to a backup provider (Anthropic or Gemini). An abstraction layer that wraps both clients behind a common interface makes this seamless. Many enterprise systems run primary + fallback simultaneously for zero-downtime resilience.</p>
+<p><strong>Cost optimization with model routing:</strong> Use a fast cheap model (Haiku, GPT-4o-mini) for simple classification or extraction tasks, and reserve the expensive model (Opus, GPT-4o) for complex reasoning. A router that classifies each request and picks the appropriate model can cut API costs by 70-80% with minimal quality impact.</p>
+<p><strong>Token budget management in production:</strong> Every API call has a cost. A production system that processes 1 million user messages per day at 500 tokens each spends $75/day at $0.00015/1K tokens. Caching identical queries, truncating unnecessary context, and compressing system prompts are engineering decisions that directly affect operating costs.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Hardcoding API keys in source code:</strong> Keys committed to git will be found by scanners within minutes and abused. Always use environment variables or a secrets manager like AWS Secrets Manager or HashiCorp Vault. Add <code>.env</code> to your <code>.gitignore</code> immediately.</div>
+<div class="callout danger">❌ <strong>No retry logic on transient errors:</strong> APIs fail. Rate limits hit. Network timeouts occur. A production system with no retry logic will surface these errors directly to users. Implement exponential backoff with jitter for all 429 and 5xx responses.</div>
+<div class="callout warn">⚠️ <strong>Not tracking token usage per request:</strong> Without usage tracking, you can't optimize costs, detect runaway prompts, or generate per-user billing. Log every API call's token counts to a database or monitoring system from day one.</div>
+<div class="callout danger">❌ <strong>Setting max_tokens too low:</strong> If the model hits max_tokens mid-sentence, the output is truncated — often resulting in invalid JSON, incomplete code, or cut-off sentences. Always set max_tokens to comfortably exceed the expected output length, and check <code>finish_reason</code> for <code>"length"</code> to detect truncation.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>What is the difference between RPM and TPM rate limits? How do you handle both in a production system?</li>
+  <li>Explain exponential backoff with jitter. Why is jitter important when multiple clients hit a rate limit simultaneously?</li>
+  <li>How would you design a multi-provider LLM client that falls back to Anthropic when OpenAI returns a 5xx error?</li>
+  <li>What does <code>finish_reason: "length"</code> indicate in an API response and how should your code handle it?</li>
+  <li>How would you implement per-user token tracking and cost attribution in a multi-tenant SaaS application?</li>
+  <li>What is the difference between the <code>temperature</code> and <code>top_p</code> parameters? When would you set temperature to 0?</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-apis">
+  <li onclick="toggleTask(this)">Call both the OpenAI and Anthropic APIs for the same prompt. Compare response quality, latency (time.time()), and token usage. Build a simple comparison table.</li>
+  <li onclick="toggleTask(this)">Implement a streaming chat function that prints tokens as they arrive and measures time-to-first-token vs time-to-complete.</li>
+  <li onclick="toggleTask(this)">Build a retry wrapper with exponential backoff. Simulate a rate limit error by raising an exception every other call, and verify the retry logic works correctly.</li>
+  <li onclick="toggleTask(this)">Create a cost calculator that logs token usage to a CSV file after every API call, then computes total spend at the end of a session.</li>
+  <li onclick="toggleTask(this)">Build a model router: classify incoming prompts as "simple" or "complex" using a fast model, then route complex prompts to GPT-4o and simple ones to GPT-4o-mini. Benchmark cost savings over 20 test prompts.</li>
+</ul>

@@ -158,5 +158,50 @@
     "stage": "Section 6 — Multimodal AI",
     "stageColor": "#06b6d4",
     "file": "video.html"
+  },
+  "apis": {
+    "stage": "Section 7 — Deployment",
+    "stageColor": "#84cc16",
+    "file": "apis.html"
+  },
+  "fastapi": {
+    "stage": "Section 7 — Deployment",
+    "stageColor": "#84cc16",
+    "file": "fastapi.html"
+  },
+  "docker": {
+    "stage": "Section 7 — Deployment",
+    "stageColor": "#84cc16",
+    "file": "docker.html"
+  },
+  "cloud": {
+  "stage": "Section 7 — Deployment",
+  "stageColor": "#84cc16",
+  "file": "cloud.html"
+  },
+  "monitoring": {
+  "stage": "Section 7 — Deployment",
+  "stageColor": "#84cc16",
+  "file": "monitoring.html"
+  },
+  "injection": {
+    "stage": "Section 8 — AI Safety",
+    "stageColor": "#ef4444",
+    "file": "injection.html"
+  },
+  "bias": {
+    "stage": "Section 8 — AI Safety",
+    "stageColor": "#ef4444",
+    "file": "bias.html"
+  },
+  "aisec": {
+    "stage": "Section 8 — AI Safety",
+    "stageColor": "#ef4444",
+    "file": "aisec.html"
+  },
+  "privacy": {
+    "stage": "Section 8 — AI Safety",
+    "stageColor": "#ef4444",
+    "file": "privacy.html"
   }
 }

@@ -1,0 +1,179 @@
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">1</span> Simple Explanation</h2>
+<p><strong>Docker</strong> solves the most frustrating problem in software development: "it works on my machine." Docker packages your application — including its Python version, all dependencies, configuration files, and environment variables — into a portable, isolated unit called a <strong>container</strong>. This container runs identically on your laptop, your colleague's Windows machine, a Linux VM in AWS, and a Kubernetes cluster in production.</p>
+<p>Think of a container like a shipping container. Before standardized shipping containers, moving goods across ships, trains, and trucks required constant repacking. Standardized containers made the format irrelevant — the cargo moves without modification. Docker does the same for software: your AI service, its model, its Python dependencies, and its configuration are packaged once and deployed anywhere.</p>
+<p>Containers are built from <strong>images</strong> — read-only templates defined in a <code>Dockerfile</code>. A Dockerfile is a recipe: start with a base image (Python 3.12), install dependencies (<code>pip install -r requirements.txt</code>), copy your code, expose a port, and define the startup command. Every time you <code>docker build</code>, Docker follows this recipe exactly, producing a reproducible image.</p>
+<div class="callout">💡 <strong>Key insight:</strong> Docker containers are not virtual machines. VMs virtualize hardware and boot a full OS (taking minutes). Containers share the host OS kernel and start in milliseconds. A Docker container is essentially a process running in an isolated namespace with its own filesystem, network, and resource limits — much lighter than a VM.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">2</span> Why It Matters for AI Engineers</h2>
+<p>AI applications have notoriously complex dependencies: specific CUDA versions, PyTorch builds, system libraries, model weights. Without Docker, deploying to a new environment means hours of debugging dependency conflicts. With Docker, you build once and it works everywhere. Every major AI platform (AWS SageMaker, Google Vertex AI, Hugging Face Endpoints, Kubernetes) deploys via Docker images. Knowing Docker is not optional — it's the packaging standard for the entire industry.</p>
+<div class="tag-row"><span class="tag">Dockerfile</span><span class="tag">Images</span><span class="tag">Containers</span><span class="tag">docker-compose</span><span class="tag">Multi-stage Builds</span><span class="tag">Docker Hub</span></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">3</span> Real-World Example</h2>
+<p><strong>Hugging Face Inference Endpoints on AWS</strong></p>
+<p>When you deploy a model to Hugging Face Inference Endpoints, the platform takes your model repository, builds a Docker image using their optimized base images (which include the right CUDA, PyTorch, and Transformers versions), and deploys it to AWS infrastructure. The image is cached — subsequent deployments of the same base configuration start in seconds. Each endpoint runs in its own container with isolated resources, meaning one model's memory leak can't crash another tenant's service. Scaling works by launching additional containers from the same image — identical environments, instant startup. This entire system is possible because Docker made "reproducible environments" a solved problem.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">4</span> Step-by-Step Explanation</h2>
+<ol>
+  <li><strong>Write a Dockerfile:</strong> Each instruction creates a new layer. <code>FROM</code> sets the base image, <code>WORKDIR</code> sets the working directory, <code>COPY</code> adds files, <code>RUN</code> executes commands during build, <code>EXPOSE</code> documents the port, <code>CMD</code> sets the startup command.</li>
+  <li><strong>Build the image:</strong> <code>docker build -t my-ai-app:v1 .</code> runs each Dockerfile instruction and caches the result. Unchanged layers are reused on the next build — making subsequent builds fast.</li>
+  <li><strong>Run a container:</strong> <code>docker run -p 8000:8000 my-ai-app:v1</code> starts a container from the image, mapping port 8000 in the container to port 8000 on your machine.</li>
+  <li><strong>Layer caching strategy:</strong> Order Dockerfile instructions from least-to-most-frequently-changed. Copy and install dependencies before copying your code — dependencies change rarely, code changes constantly. This way, <code>pip install</code> is cached and only runs when <code>requirements.txt</code> changes.</li>
+  <li><strong>Multi-stage builds for smaller images:</strong> Use a large build image (with compilers) to install packages, then copy only the results into a small runtime image. This can reduce image sizes from 4GB to 400MB.</li>
+</ol>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">5</span> Python Code Example</h2>
+<div class="code-block">
+  <div class="code-block-header"><span class="code-lang">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+  <pre><code><span class="cm"># Dockerfile — production AI API service</span>
+<span class="cm">###############################################</span>
+<span class="cm"># FROM python:3.12-slim</span>
+<span class="cm"># </span>
+<span class="cm"># WORKDIR /app</span>
+<span class="cm"># </span>
+<span class="cm"># # Install dependencies FIRST (cached unless requirements.txt changes)</span>
+<span class="cm"># COPY requirements.txt .</span>
+<span class="cm"># RUN pip install --no-cache-dir -r requirements.txt</span>
+<span class="cm"># </span>
+<span class="cm"># # Copy application code AFTER (not cached when code changes — fast!)</span>
+<span class="cm"># COPY . .</span>
+<span class="cm"># </span>
+<span class="cm"># EXPOSE 8000</span>
+<span class="cm"># </span>
+<span class="cm"># # Run as non-root for security</span>
+<span class="cm"># RUN adduser --disabled-password --gecos '' appuser</span>
+<span class="cm"># USER appuser</span>
+<span class="cm"># </span>
+<span class="cm"># CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]</span>
+<span class="cm">###############################################</span>
+
+<span class="cm"># docker-compose.yml — local development stack</span>
+<span class="cm">###############################################</span>
+<span class="cm"># version: "3.9"</span>
+<span class="cm"># services:</span>
+<span class="cm">#   api:</span>
+<span class="cm">#     build: .</span>
+<span class="cm">#     ports:</span>
+<span class="cm">#       - "8000:8000"</span>
+<span class="cm">#     environment:</span>
+<span class="cm">#       - OPENAI_API_KEY=${OPENAI_API_KEY}</span>
+<span class="cm">#     volumes:</span>
+<span class="cm">#       - ./models:/app/models   # mount model weights from host</span>
+<span class="cm">#     depends_on:</span>
+<span class="cm">#       - redis</span>
+<span class="cm">#   redis:</span>
+<span class="cm">#     image: redis:7-alpine</span>
+<span class="cm">#     ports:</span>
+<span class="cm">#       - "6379:6379"</span>
+<span class="cm">###############################################</span>
+
+<span class="cm"># Python: programmatically check if running in Docker</span>
+<span class="kw">import</span> os
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="kw">def</span> <span class="fn">is_running_in_docker</span>() -> bool:
+    <span class="kw">return</span> Path(<span class="str">"/.dockerenv"</span>).<span class="fn">exists</span>()
+
+<span class="cm"># Adjust model paths based on environment</span>
+<span class="kw">if</span> <span class="fn">is_running_in_docker</span>():
+    MODEL_PATH = <span class="str">"/app/models/llama-3-8b"</span>   <span class="cm"># inside container</span>
+<span class="kw">else</span>:
+    MODEL_PATH = <span class="str">"./models/llama-3-8b"</span>      <span class="cm"># local dev</span>
+
+<span class="cm"># Multi-stage Dockerfile for smaller AI images:</span>
+<span class="cm">###############################################</span>
+<span class="cm"># Stage 1: Build (installs compiled extensions)</span>
+<span class="cm"># FROM python:3.12 AS builder</span>
+<span class="cm"># RUN pip install --user torch --index-url https://download.pytorch.org/whl/cpu</span>
+<span class="cm">#</span>
+<span class="cm"># Stage 2: Runtime (copy only installed packages)</span>
+<span class="cm"># FROM python:3.12-slim</span>
+<span class="cm"># COPY --from=builder /root/.local /root/.local</span>
+<span class="cm"># COPY . .</span>
+<span class="cm"># CMD ["uvicorn", "app:app", ...]</span>
+<span class="cm">###############################################</span>
+
+<span class="cm"># Key Docker commands reference:</span>
+commands = {
+    <span class="str">"build"</span>:    <span class="str">"docker build -t ai-service:v1 ."</span>,
+    <span class="str">"run"</span>:      <span class="str">"docker run -p 8000:8000 --env-file .env ai-service:v1"</span>,
+    <span class="str">"shell"</span>:    <span class="str">"docker exec -it CONTAINER_ID bash"</span>,
+    <span class="str">"logs"</span>:     <span class="str">"docker logs -f CONTAINER_ID"</span>,
+    <span class="str">"push"</span>:     <span class="str">"docker push myregistry/ai-service:v1"</span>,
+    <span class="str">"compose"</span>:  <span class="str">"docker compose up --build"</span>,
+    <span class="str">"prune"</span>:    <span class="str">"docker system prune -a"</span>,   <span class="cm"># clean unused images</span>
+}
+<span class="kw">for</span> name, cmd <span class="kw">in</span> commands.<span class="fn">items</span>():
+    <span class="fn">print</span>(<span class="str">f"{name:10s}: {cmd}"</span>)</code></pre>
+</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">6</span> Visual Explanation</h2>
+<div class="diagram-block"><pre>
+DOCKER LAYER CACHING — Order Matters!
+
+  WRONG ORDER (slow rebuilds):
+  FROM python:3.12-slim
+  COPY . .                        ← every code change invalidates cache here
+  RUN pip install -r requirements.txt  ← ALWAYS re-runs! (minutes wasted)
+
+  CORRECT ORDER (fast rebuilds):
+  FROM python:3.12-slim
+  COPY requirements.txt .          ← cached unless requirements change
+  RUN pip install -r requirements.txt  ← cached unless above changes
+  COPY . .                         ← only this layer re-runs on code change
+  CMD ["uvicorn", ...]             ← always cached
+
+CONTAINER vs VM:
+  ┌────────────────────┐    ┌────────────────────┐
+  │      VM            │    │    Docker Container │
+  │  ┌──────────────┐  │    │  ┌──────────────┐  │
+  │  │  Guest OS    │  │    │  │  App + Deps  │  │
+  │  │  (Ubuntu)    │  │    │  └──────────────┘  │
+  │  └──────────────┘  │    │  Shared Host Kernel │
+  │  Hypervisor        │    │  (no separate OS)   │
+  └────────────────────┘    └────────────────────┘
+  Boot: 30-60 seconds       Boot: < 1 second
+  Size: GBs                 Size: MBs to low-GBs
+  Isolation: full           Isolation: namespace
+
+DOCKER COMPOSE — LOCAL AI STACK:
+  ┌─────────────────────────────────────────────────┐
+  │  docker-compose up                              │
+  │                                                 │
+  │  [api container]  →  port 8000  →  your browser│
+  │  [redis container] → port 6379  →  api uses it │
+  │  [chroma container]→ port 8001  →  vector store │
+  │                                                 │
+  │  All containers share a virtual network         │
+  │  api can reach redis at "redis:6379" by name    │
+  └─────────────────────────────────────────────────┘
+</pre></div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">7</span> Practical Use Cases</h2>
+<p><strong>Reproducible ML experiments:</strong> Pin the exact Python, CUDA, PyTorch, and library versions in a Dockerfile. Share the image with your team. Every member runs experiments in an identical environment — eliminating "the model trains on my machine but not yours" problems that waste days of engineering time.</p>
+<p><strong>Model deployment to cloud platforms:</strong> AWS ECS, Google Cloud Run, and Azure Container Apps all deploy Docker images. Build your FastAPI + model service as an image, push to ECR or GCR, and deploy with a single command. The platform handles scaling, health checks, and rolling updates automatically.</p>
+<p><strong>Local development stack with docker-compose:</strong> Define your full stack — API server, vector database, Redis cache, PostgreSQL — in a single <code>docker-compose.yml</code>. Any developer clones the repo and runs <code>docker compose up</code> to get the full environment running in under 2 minutes, with no manual setup required.</p>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">8</span> Common Mistakes</h2>
+<div class="callout danger">❌ <strong>Copying .env files or model weights into images:</strong> Docker images are often stored in public or semi-public registries. Baking secrets or large model weights into the image is a security and storage disaster. Use environment variables at runtime and mount model weights as volumes or download them at container startup from secure storage.</div>
+<div class="callout warn">⚠️ <strong>Running as root inside containers:</strong> By default, containers run as root. If your app has a vulnerability, an attacker gains root access to the container (and potentially the host). Always add a non-root user in your Dockerfile and switch to it before the CMD instruction.</div>
+<div class="callout danger">❌ <strong>Not using .dockerignore:</strong> Without a <code>.dockerignore</code> file, <code>COPY . .</code> includes your virtual environment, <code>.git</code> folder, model weight files, and other large/sensitive content. This bloats image sizes and exposes unnecessary data. Always create a <code>.dockerignore</code> mirroring your <code>.gitignore</code>.</div>
+<div class="callout warn">⚠️ <strong>Ignoring image size:</strong> A 10GB image takes 10 minutes to pull on first deployment and costs real money in registry storage. Use slim base images (<code>python:3.12-slim</code> instead of <code>python:3.12</code>), multi-stage builds, and <code>--no-cache-dir</code> on pip installs. Target under 2GB for most AI services.</div>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">9</span> Interview Questions</h2>
+<ul class="interview-list">
+  <li>Explain Docker layer caching. How would you order Dockerfile instructions to maximize cache hits during development?</li>
+  <li>What is the difference between a Docker image and a Docker container?</li>
+  <li>Why should you use multi-stage builds for AI services? What problem do they solve?</li>
+  <li>How would you pass secrets (API keys) to a Docker container securely in production? What approaches should you avoid?</li>
+  <li>Explain docker-compose. How would you set up a local development environment for a FastAPI service that depends on Redis and a vector database?</li>
+  <li>Your Docker image is 8GB. Walk through the strategies you'd use to reduce it to under 2GB.</li>
+</ul>
+
+<h2><span class="h2-num" style="background:rgba(132,204,22,.15);color:#84cc16">10</span> Mini Practice Tasks</h2>
+<ul class="task-list" id="tasks-docker">
+  <li onclick="toggleTask(this)">Write a Dockerfile for your FastAPI AI service. Build it, run it, and verify the <code>/health</code> endpoint responds correctly from inside the container. Check the image size.</li>
+  <li onclick="toggleTask(this)">Demonstrate layer caching: build your image twice and compare build times. Then change your app.py and rebuild — confirm that only the last layer rebuilds while dependencies are cached.</li>
+  <li onclick="toggleTask(this)">Create a <code>.dockerignore</code> file. Add your venv, <code>__pycache__</code>, <code>.env</code>, and any model weight folders. Rebuild and compare image sizes before and after.</li>
+  <li onclick="toggleTask(this)">Write a docker-compose.yml that starts your FastAPI service alongside a ChromaDB container. Verify your API can reach ChromaDB using the service name as the hostname.</li>
+  <li onclick="toggleTask(this)">Convert your single-stage Dockerfile to a multi-stage build. Measure the image size difference and verify the container still functions correctly in the runtime stage.</li>
+</ul>
