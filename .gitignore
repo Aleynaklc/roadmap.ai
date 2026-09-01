@@ -5,3 +5,6 @@ venv/
 # Python önbellek dosyaları
 __pycache__/
 *.pyc
+
+# Environment variables
+.env

@@ -4,6 +4,7 @@ let stages = [];
 let currentNode = null;
 let currentStage = null;
 let tutorOpen = false;
+let tutorSessionId = localStorage.getItem('aie-tutor-session-id') || null;
 
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
@@ -215,29 +216,71 @@ async function sendTutor() {
 
   const messages = document.getElementById('tutor-messages');
   messages.innerHTML += `<div class="tutor-msg user">${message}</div>`;
-  const typingId = `typing-${Date.now()}`;
-  messages.innerHTML += `<div class="tutor-msg ai tutor-typing" id="${typingId}">Thinking...</div>`;
+  const aiId = `ai-${Date.now()}`;
+  messages.innerHTML += `<div class="tutor-msg ai tutor-typing" id="${aiId}">Thinking...</div>`;
   messages.scrollTop = messages.scrollHeight;
 
   try {
-    const data = await fetchJson('/api/chat', {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
         lesson_title: currentNode?.title ?? null,
         stage_label: currentStage?.label ?? null,
+        session_id: tutorSessionId,
       }),
     });
-    document.getElementById(typingId).textContent = data.reply;
-    document.getElementById(typingId).classList.remove('tutor-typing');
+
+    if (!response.ok) {
+      throw new Error(`Chat request failed: ${response.status}`);
+    }
+
+    const newSessionId = response.headers.get('x-session-id');
+    if (newSessionId) {
+      tutorSessionId = newSessionId;
+      localStorage.setItem('aie-tutor-session-id', tutorSessionId);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const bubble = document.getElementById(aiId);
+    bubble.textContent = '';
+    bubble.classList.remove('tutor-typing');
+
+    let fullText = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      fullText += decoder.decode(value, { stream: true });
+      bubble.textContent = fullText;
+      messages.scrollTop = messages.scrollHeight;
+    }
   } catch (error) {
-    document.getElementById(typingId).textContent = 'Chat endpoint failed.';
-    document.getElementById(typingId).classList.remove('tutor-typing');
+    const bubble = document.getElementById(aiId);
+    if (bubble) {
+      bubble.textContent = 'Chat endpoint failed.';
+      bubble.classList.remove('tutor-typing');
+    }
     console.error(error);
   }
 
   messages.scrollTop = messages.scrollHeight;
+}
+
+async function clearTutorChat() {
+  try {
+    if (tutorSessionId) {
+      await fetch(`/api/chat/${tutorSessionId}`, { method: 'DELETE' });
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    tutorSessionId = null;
+    localStorage.removeItem('aie-tutor-session-id');
+    document.getElementById('tutor-messages').innerHTML =
+      '<div class="tutor-msg ai">Chat cleared. Open a lesson and ask anything about it.</div>';
+  }
 }
 
 function copyCode(btn) {
@@ -291,6 +334,7 @@ function bindEvents() {
   document.getElementById('bookmark-btn').addEventListener('click', toggleBookmark);
   document.getElementById('tutor-toggle').addEventListener('click', toggleTutor);
   document.getElementById('tutor-send').addEventListener('click', sendTutor);
+  document.getElementById('tutor-clear').addEventListener('click', clearTutorChat);
   document.getElementById('tutor-input').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') sendTutor();
   });

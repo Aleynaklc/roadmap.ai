@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import json
+import re
+import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.requests import Request
+
+from chatbot.llm import stream_chat_completion
+from chatbot.memory import add_message, clear_session, get_history
+from chatbot.prompts import build_system_prompt
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -30,6 +37,7 @@ class ChatPayload(BaseModel):
     message: str
     lesson_title: str | None = None
     stage_label: str | None = None
+    session_id: str | None = None
 
 
 app = FastAPI(title="AI Roadmap Python Backend")
@@ -43,6 +51,64 @@ app.add_middleware(
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.mount("/lessons", StaticFiles(directory=str(LESSONS_DIR)), name="lessons")
+
+_RATE_LIMIT: dict[str, list[float]] = {}
+_RATE_LIMIT_WINDOW_S = 60
+_RATE_LIMIT_MAX_REQ = 30
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return "unknown"
+
+
+def _rate_limit_or_429(request: Request) -> None:
+    ip = _client_ip(request)
+    now = time.time()
+    bucket = _RATE_LIMIT.setdefault(ip, [])
+    cutoff = now - _RATE_LIMIT_WINDOW_S
+    while bucket and bucket[0] < cutoff:
+        bucket.pop(0)
+    if len(bucket) >= _RATE_LIMIT_MAX_REQ:
+        raise HTTPException(status_code=429, detail="Too many chat requests. Please wait a moment.")
+    bucket.append(now)
+
+
+def _strip_html_to_text(html: str) -> str:
+    text = re.sub(r"<script[\s\S]*?</script>", " ", html, flags=re.I)
+    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def _load_lesson_text_by_title(title: str | None) -> str | None:
+    if not title:
+        return None
+    # Best-effort: match node title -> slug from STAGES
+    title_norm = title.strip().lower()
+    slug = None
+    for stage in STAGES:
+        for node in stage["nodes"]:
+            if str(node.get("title", "")).strip().lower() == title_norm:
+                slug = node.get("id")
+                break
+        if slug:
+            break
+    if not slug:
+        return None
+    lesson_meta = LESSON_META.get(slug)
+    if not lesson_meta:
+        return None
+    lesson_path = LESSONS_DIR / lesson_meta["file"]
+    if not lesson_path.exists():
+        return None
+    raw_html = lesson_path.read_text(encoding="utf-8")
+    return _strip_html_to_text(raw_html)
 
 
 def find_node(slug: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -112,16 +178,60 @@ async def lesson(slug: str) -> dict[str, Any]:
 
 
 @app.post("/api/chat")
-async def chat(payload: ChatPayload) -> dict[str, str]:
-    lesson_part = f" for {payload.lesson_title}" if payload.lesson_title else ""
-    stage_part = f" in {payload.stage_label}" if payload.stage_label else ""
-    return {
-        "reply": (
-            f"This Python backend project does not call an external model yet. "
-            f"You asked{lesson_part}{stage_part}: \"{payload.message}\". "
-            f"The next step is wiring this endpoint to Gemini, OpenAI, Anthropic, or a local model."
-        )
-    }
+async def chat(payload: ChatPayload, request: Request):
+    _rate_limit_or_429(request)
+
+    message = (payload.message or "").strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="Message is required.")
+    if len(message) > 4000:
+        raise HTTPException(status_code=422, detail="Message too long (max 4000 chars).")
+
+    session_id = payload.session_id or str(uuid.uuid4())
+
+    lesson_text = _load_lesson_text_by_title(payload.lesson_title)
+    if lesson_text:
+        # Keep prompt cost bounded
+        lesson_text = lesson_text[:2500]
+
+    system_prompt = build_system_prompt(
+        lesson_title=payload.lesson_title,
+        stage_label=payload.stage_label,
+        lesson_content=lesson_text,
+    )
+
+    history = get_history(session_id)
+    add_message(session_id, "user", message)
+
+    messages = (
+        [{"role": "system", "content": system_prompt}]
+        + history
+        + [{"role": "user", "content": message}]
+    )
+
+    def generate():
+        full = []
+        try:
+            for chunk in stream_chat_completion(messages):
+                full.append(chunk)
+                yield chunk
+        except Exception as e:
+            yield f"\n\n[Error] {str(e)}"
+        finally:
+            if full:
+                add_message(session_id, "assistant", "".join(full))
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain; charset=utf-8",
+        headers={"X-Session-Id": session_id},
+    )
+
+
+@app.delete("/api/chat/{session_id}")
+async def clear_chat(session_id: str):
+    clear_session(session_id)
+    return {"cleared": True}
 
 if __name__ == "__main__":
     import uvicorn
