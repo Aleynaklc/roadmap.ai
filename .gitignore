@@ -10,3 +10,6 @@ __pycache__/
 .env
 
 .DS_Store
+
+# Generated GitHub Pages site
+build/

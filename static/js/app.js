@@ -1,10 +1,17 @@
 const completed = new Set(JSON.parse(localStorage.getItem('aie-completed') || '[]'));
 const bookmarks = new Set(JSON.parse(localStorage.getItem('aie-bookmarks') || '[]'));
+const appConfig = window.APP_CONFIG || {};
+const isStaticSite = appConfig.staticSite === true;
 let stages = [];
+let lessonMeta = {};
 let currentNode = null;
 let currentStage = null;
 let tutorOpen = false;
 let tutorSessionId = localStorage.getItem('aie-tutor-session-id') || null;
+
+function siteUrl(path) {
+  return new URL(path, document.baseURI).toString();
+}
 
 async function fetchJson(url, options) {
   const response = await fetch(url, options);
@@ -14,7 +21,25 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
+async function fetchText(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+  return response.text();
+}
+
 async function loadRoadmap() {
+  if (isStaticSite) {
+    const [roadmap, metadata] = await Promise.all([
+      fetchJson(siteUrl('data/roadmap.json')),
+      fetchJson(siteUrl('data/lesson_meta.json')),
+    ]);
+    stages = roadmap;
+    lessonMeta = metadata;
+    return;
+  }
+
   const data = await fetchJson('/api/roadmap');
   stages = data.stages;
 }
@@ -88,7 +113,19 @@ async function openLesson(nodeId, stageId) {
   document.getElementById('bookmark-btn').classList.toggle('active', bookmarks.has(node.id));
 
   try {
-    const lesson = await fetchJson(`/api/lesson/${node.id}`);
+    let lesson;
+    if (isStaticSite) {
+      const metadata = lessonMeta[node.id];
+      if (!metadata) {
+        throw new Error(`Missing lesson metadata: ${node.id}`);
+      }
+      lesson = {
+        ...metadata,
+        content: await fetchText(siteUrl(`lessons/${metadata.file}`)),
+      };
+    } else {
+      lesson = await fetchJson(`/api/lesson/${node.id}`);
+    }
     const badge = document.getElementById('lesson-stage-badge');
     badge.textContent = lesson.stage;
     badge.style.color = lesson.stageColor;
@@ -220,6 +257,14 @@ async function sendTutor() {
   messages.innerHTML += `<div class="tutor-msg ai tutor-typing" id="${aiId}">Thinking...</div>`;
   messages.scrollTop = messages.scrollHeight;
 
+  if (isStaticSite) {
+    const bubble = document.getElementById(aiId);
+    bubble.textContent = 'The AI tutor needs the FastAPI backend. Run the project locally to use chat.';
+    bubble.classList.remove('tutor-typing');
+    messages.scrollTop = messages.scrollHeight;
+    return;
+  }
+
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -270,7 +315,7 @@ async function sendTutor() {
 
 async function clearTutorChat() {
   try {
-    if (tutorSessionId) {
+    if (!isStaticSite && tutorSessionId) {
       await fetch(`/api/chat/${tutorSessionId}`, { method: 'DELETE' });
     }
   } catch (error) {
